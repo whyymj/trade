@@ -1,0 +1,7 @@
+start_date: ''
+end_date: ''
+adjust: qfq
+stocks:
+- '601212'
+- 000901
+output_dir: data
