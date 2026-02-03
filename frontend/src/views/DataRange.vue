@@ -4,121 +4,91 @@
     <p class="subtitle">选择多只股票与日期范围，分页查看日线数据</p>
 
     <div class="nav-row">
-      <router-link to="/" class="link">← 曲线</router-link>
-      <router-link to="/data-manage" class="link">数据管理</router-link>
+      <el-link type="primary" :underline="false" router to="/">← 曲线</el-link>
+      <el-link type="primary" :underline="false" router to="/data-manage">数据管理</el-link>
     </div>
 
-    <div class="card">
-      <div class="card-title">查询条件</div>
-      <div class="form-row">
-        <label>股票代码</label>
-        <input
-          v-model="symbolsInput"
-          type="text"
-          placeholder="逗号分隔，如 600519,000001,09678.HK"
-          class="symbols-input"
-        />
-        <span class="pick-hint">或从下方勾选</span>
-      </div>
-      <div class="checkbox-list">
-        <label
-          v-for="item in stockStore.fileList"
-          :key="item.filename"
-          class="checkbox-item"
-        >
-          <input
-            type="checkbox"
-            :value="item.filename"
-            :checked="selectedSymbols.includes(item.filename)"
-            @change="toggleSymbol(item.filename)"
+    <el-card shadow="never" class="card">
+      <template #header><span>查询条件</span></template>
+      <el-form label-width="90px" label-position="left">
+        <el-form-item label="股票代码">
+          <el-input
+            v-model="symbolsInput"
+            placeholder="逗号分隔，如 600519,000001,09678.HK"
+            clearable
+            style="width: 360px; max-width: 100%"
           />
-          <span>{{ item.displayName || item.filename }}</span>
-        </label>
-      </div>
-      <div class="form-row">
-        <label>开始日期</label>
-        <input v-model="start" type="date" />
-      </div>
-      <div class="form-row">
-        <label>结束日期</label>
-        <input v-model="end" type="date" />
-      </div>
-      <div class="form-row">
-        <label>每页条数</label>
-        <select v-model.number="pageSize">
-          <option :value="10">10</option>
-          <option :value="20">20</option>
-          <option :value="50">50</option>
-          <option :value="100">100</option>
-        </select>
-        <button
-          type="button"
-          class="btn btn-primary"
-          :disabled="loading || !symbolsList.length"
-          @click="query(1)"
-        >
-          查询
-        </button>
-      </div>
-    </div>
+          <span class="pick-hint">或从下方勾选</span>
+        </el-form-item>
+        <el-form-item label="">
+          <el-checkbox-group v-model="selectedSymbols" class="checkbox-list">
+            <el-checkbox v-for="item in stockStore.fileList" :key="item.filename" :label="item.filename">
+              {{ item.displayName || item.filename }}
+            </el-checkbox>
+          </el-checkbox-group>
+        </el-form-item>
+        <el-form-item label="开始日期">
+          <el-date-picker
+            v-model="start"
+            type="date"
+            placeholder="选择日期"
+            value-format="YYYY-MM-DD"
+            format="YYYY-MM-DD"
+            style="width: 160px"
+          />
+        </el-form-item>
+        <el-form-item label="结束日期">
+          <el-date-picker
+            v-model="end"
+            type="date"
+            placeholder="选择日期"
+            value-format="YYYY-MM-DD"
+            format="YYYY-MM-DD"
+            style="width: 160px"
+          />
+        </el-form-item>
+        <el-form-item label="每页条数">
+          <el-select v-model.number="pageSize" style="width: 100px">
+            <el-option :value="10" label="10" />
+            <el-option :value="20" label="20" />
+            <el-option :value="50" label="50" />
+            <el-option :value="100" label="100" />
+          </el-select>
+          <el-button type="primary" :loading="loading" :disabled="!symbolsList.length" @click="query(1)">
+            查询
+          </el-button>
+        </el-form-item>
+      </el-form>
+    </el-card>
 
-    <div class="card" v-if="result">
-      <div class="card-title">
-        共 {{ result.total }} 条，第 {{ result.page }} / {{ totalPages }} 页
+    <el-card v-if="result" shadow="never" class="card">
+      <template #header>
+        <span>共 {{ result.total }} 条，第 {{ result.page }} / {{ totalPages }} 页</span>
+      </template>
+      <el-table :data="result.data" stripe style="width: 100%">
+        <el-table-column prop="trade_date" label="日期" width="110" />
+        <el-table-column prop="symbol" label="股票" width="100" />
+        <el-table-column prop="open" label="开盘" :formatter="(row, col, cell) => formatNum(cell)" />
+        <el-table-column prop="close" label="收盘" :formatter="(row, col, cell) => formatNum(cell)" />
+        <el-table-column prop="high" label="最高" :formatter="(row, col, cell) => formatNum(cell)" />
+        <el-table-column prop="low" label="最低" :formatter="(row, col, cell) => formatNum(cell)" />
+        <el-table-column prop="volume" label="成交量" :formatter="(row, col, cell) => formatNum(cell)" min-width="100" />
+      </el-table>
+      <div class="pagination-wrap">
+        <el-pagination
+          :current-page="result.page"
+          :page-size="result.page_size"
+          :total="result.total"
+          layout="prev, pager, next, total"
+          @current-change="onPageChange"
+        />
       </div>
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>日期</th>
-              <th>股票</th>
-              <th>开盘</th>
-              <th>收盘</th>
-              <th>最高</th>
-              <th>最低</th>
-              <th>成交量</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in result.data" :key="row.symbol + row.trade_date">
-              <td>{{ row.trade_date }}</td>
-              <td>{{ row.symbol }}</td>
-              <td>{{ formatNum(row.open) }}</td>
-              <td>{{ formatNum(row.close) }}</td>
-              <td>{{ formatNum(row.high) }}</td>
-              <td>{{ formatNum(row.low) }}</td>
-              <td>{{ formatNum(row.volume) }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="pagination">
-        <button
-          type="button"
-          class="btn btn-secondary"
-          :disabled="result.page <= 1 || loading"
-          @click="query(result.page - 1)"
-        >
-          上一页
-        </button>
-        <span class="page-info">
-          第 {{ result.page }} / {{ totalPages }} 页
-        </span>
-        <button
-          type="button"
-          class="btn btn-secondary"
-          :disabled="result.page >= totalPages || loading"
-          @click="query(result.page + 1)"
-        >
-          下一页
-        </button>
-      </div>
-    </div>
+    </el-card>
 
-    <div v-else-if="searched && !loading" class="empty">暂无数据或请先选择股票与日期范围</div>
+    <el-empty v-else-if="searched && !loading" description="暂无数据或请先选择股票与日期范围" :image-size="80" />
 
-    <div v-show="loading" class="loading">加载中…</div>
-    <div v-show="appStore.errorMessage" class="error">{{ appStore.errorMessage }}</div>
+    <div v-loading="loading" class="loading-wrap" />
+    <el-alert v-if="appStore.errorMessage" type="error" :title="appStore.errorMessage" show-icon closable class="error-alert" @close="appStore.setError('')" />
   </div>
 </template>
 
@@ -154,15 +124,6 @@ const totalPages = computed(() => {
   return Math.max(1, Math.ceil(result.value.total / result.value.page_size))
 })
 
-function toggleSymbol(symbol) {
-  const i = selectedSymbols.value.indexOf(symbol)
-  if (i === -1) {
-    selectedSymbols.value = [...selectedSymbols.value, symbol]
-  } else {
-    selectedSymbols.value = selectedSymbols.value.filter((s) => s !== symbol)
-  }
-}
-
 function formatNum(v) {
   if (v == null || v === '') return '—'
   const n = Number(v)
@@ -196,6 +157,10 @@ async function query(page = 1) {
   }
 }
 
+function onPageChange(page) {
+  query(page)
+}
+
 onMounted(async () => {
   await stockStore.fetchList()
 })
@@ -216,7 +181,7 @@ h1 {
   background-clip: text;
 }
 .subtitle {
-  color: #8892a0;
+  color: var(--el-text-color-secondary);
   margin-bottom: 16px;
 }
 .nav-row {
@@ -224,140 +189,34 @@ h1 {
   display: flex;
   gap: 16px;
 }
-.link {
-  color: #00d9ff;
-  text-decoration: none;
+.nav-row .el-link {
   font-size: 14px;
-}
-.link:hover {
-  text-decoration: underline;
 }
 .card {
-  background: rgba(30, 41, 59, 0.6);
-  border-radius: 12px;
-  padding: 20px;
   margin-bottom: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-}
-.card-title {
-  font-size: 15px;
-  color: #94a3b8;
-  margin-bottom: 16px;
-}
-.form-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-.form-row label {
-  width: 90px;
-  color: #a0aec0;
-  font-size: 14px;
-}
-.form-row input,
-.form-row select {
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid #2d3748;
-  background: #1e293b;
-  color: #e2e8f0;
-  font-size: 14px;
-  min-width: 140px;
-}
-.symbols-input {
-  flex: 1;
-  max-width: 360px;
 }
 .pick-hint {
-  color: #64748b;
+  margin-left: 12px;
+  color: var(--el-text-color-secondary);
   font-size: 13px;
 }
 .checkbox-list {
   display: flex;
   flex-wrap: wrap;
   gap: 12px 20px;
-  margin-bottom: 16px;
   padding: 12px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--el-border-color-lighter);
 }
-.checkbox-item {
+.pagination-wrap {
+  margin-top: 16px;
   display: flex;
-  align-items: center;
-  gap: 6px;
-  color: #e2e8f0;
-  font-size: 13px;
-  cursor: pointer;
+  justify-content: flex-end;
 }
-.checkbox-item input {
-  width: auto;
-  min-width: auto;
+.loading-wrap {
+  min-height: 2px;
+  margin-top: 16px;
 }
-.table-wrap {
-  overflow-x: auto;
-  margin-bottom: 16px;
-}
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 14px;
-}
-.data-table th,
-.data-table td {
-  padding: 10px 12px;
-  text-align: left;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-.data-table th {
-  color: #94a3b8;
-  font-weight: 500;
-}
-.data-table td {
-  color: #e2e8f0;
-}
-.data-table tbody tr:hover {
-  background: rgba(255, 255, 255, 0.03);
-}
-.pagination {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-.page-info {
-  color: #94a3b8;
-  font-size: 14px;
-}
-.btn {
-  padding: 8px 16px;
-  border-radius: 8px;
-  border: none;
-  font-size: 14px;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-.btn:hover:not(:disabled) {
-  opacity: 0.9;
-}
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.btn-primary {
-  background: linear-gradient(135deg, #00d9ff, #00a8cc);
-  color: #0f172a;
-}
-.btn-secondary {
-  background: #334155;
-  color: #e2e8f0;
-}
-.empty,
-.loading,
-.error {
-  text-align: center;
-  padding: 24px;
-  color: #94a3b8;
-}
-.error {
-  color: #f87171;
+.error-alert {
+  margin-top: 16px;
 }
 </style>

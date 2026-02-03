@@ -55,7 +55,7 @@
       <div ref="volumeChartRef" class="chart volume"></div>
     </div>
 
-    <el-alert v-if="appStore.errorMessage" type="error" :title="appStore.errorMessage" show-icon closable class="error-alert" />
+    <el-alert v-if="appStore.errorMessage" type="error" :title="appStore.errorMessage" show-icon closable class="error-alert" @close="appStore.setError('')" />
   </div>
 </template>
 
