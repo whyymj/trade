@@ -6,10 +6,10 @@
 
 ## 一、项目概述
 
-- **职责**：提供本地/网络股票日线数据接口，供前端 ECharts 展示曲线；支持按配置一键更新、按代码抓取并写入配置。
-- **技术**：Flask + server 工具包（配置、akshare 拉取）+ **MySQL 存储**（data.schema / data.stock_repo）。
-- **配置**：`config.yaml`（时间范围、复权、股票列表、**mysql** 数据库连接）。
-- **数据存储**：MySQL。表 `stock_meta`（股票元信息）、`stock_daily`（日线行情）；启动时自动建表。
+- **职责**：提供股票日线数据接口供前端 ECharts 展示；支持通过前端添加股票、一键更新、全量同步、移除股票及配置管理。
+- **技术**：Flask + server 工具包（配置、akshare 拉取）+ MySQL 存储（data.schema / data.stock_repo）。
+- **配置**：`config.yaml`（日期范围、复权、股票列表、**mysql** 连接）；数据抓取与管理仅通过前端页面调用 API 完成。
+- **数据存储**：MySQL。表 `stock_meta`（股票元信息，含 `first_trade_date` / `last_trade_date` 已有数据时间范围、`remark` 用户说明）、`stock_daily`（日线行情）；启动时自动建表。
 
 ---
 
@@ -35,12 +35,14 @@
 | GET | `/static/<path>` | 静态资源 |
 | GET | `/api/list` | 获取数据库中股票列表（filename 为 symbol，供 /api/data 使用） |
 | GET | `/api/data` | 按 file 参数（股票代码）从数据库获取日线图表 JSON |
+| GET | `/api/data_range` | 按日期范围查询多只股票日线，分页（Query: symbols, start, end, page, size） |
 | GET | `/api/fetch_data/<stock_code>` | 按股票代码获取数据（优先本地，无则拉取） |
-| POST | `/api/update_all` | 一键更新全部（按 config.stocks 拉取并覆盖） |
-| POST | `/api/add_stock` | 抓取指定代码并加入 config.stocks |
+| POST | `/api/update_all` | 增量更新全部：按库内每只股票最后交易日补全至今日 |
+| POST | `/api/add_stock` | 抓取该股票近 5 年日线并加入 config.stocks |
 | GET | `/api/config` | 获取当前 config.yaml 内容（数据管理用） |
 | PUT/PATCH | `/api/config` | 更新 config（body: start_date, end_date, adjust, stocks, output_dir） |
 | POST | `/api/sync_all` | 全量同步：清空 DB 后按 config.stocks 拉取并写入数据库 |
+| PUT/PATCH | `/api/stock_remark` | 更新股票说明（body: { "symbol": "600519", "remark": "说明" }） |
 | POST | `/api/remove_stock` | 从 config 移除股票并删除库中该股票数据（body: { "code": "600519" }） |
 
 ---
@@ -56,13 +58,14 @@
 ```json
 {
   "files": [
-    { "filename": "600519", "displayName": "贵州茅台" }
+    { "filename": "600519", "displayName": "贵州茅台", "remark": "用户说明" }
   ]
 }
 ```
 
 - `filename`：股票代码，用于请求 `/api/data?file=600519`。
 - `displayName`：展示用名称（来自 stock_meta 或代码）。
+- `remark`：用户手动输入的说明（可 PUT /api/stock_remark 更新）。
 
 ---
 
@@ -81,14 +84,42 @@
 **错误**
 
 - 400：缺少或非法 `file`。
-- 404：文件不存在。
+- 404：暂无数据或拉取失败。
 - 500：读取失败。
 
 ---
 
-### 3. GET /api/fetch_data/<stock_code>
+### 3. GET /api/data_range
 
-按股票代码获取日线：若本地已有该代码对应 CSV 则直接读本地，否则用 akshare 拉取（A 股/港股自动区分）。日期范围与复权来自 config。
+按日期范围查询多只股票日线，分页返回。
+
+**请求**
+
+- Query: `symbols` = 股票代码，逗号分隔（必填）；`start`、`end` = 日期 YYYY-MM-DD（可选）；`page` = 页码，默认 1；`size` = 每页条数，默认 20，最大 500。
+
+**响应 200**
+
+```json
+{
+  "total": 1000,
+  "page": 1,
+  "page_size": 20,
+  "data": [
+    { "symbol": "600519", "trade_date": "2025-02-01", "open": 1680.0, "high": 1690.0, "low": 1675.0, "close": 1685.0, "volume": 1234567, "amount": 2080000000, "amplitude": 0.59, "change_pct": 0.3, "change_amt": 5.0, "turnover_rate": 0.98 }
+  ]
+}
+```
+
+**错误**
+
+- 400：缺少或非法 `symbols`。
+- 500：服务器错误。
+
+---
+
+### 4. GET /api/fetch_data/<stock_code>
+
+按股票代码获取日线：优先从数据库读取，若无则用 akshare 拉取并写入 DB（A 股/港股自动区分）。日期范围与复权来自 config。
 
 **路径参数**
 
@@ -105,9 +136,9 @@
 
 ---
 
-### 4. POST /api/update_all
+### 5. POST /api/update_all
 
-按 config 中 `stocks` 列表，逐个从网络拉取并覆盖保存到数据目录（不读本地缓存）。
+增量更新：按 config 中 `stocks` 列表，对每只股票只拉取「库内最后交易日」至今日的缺失日线并写入（不重复拉取已有区间）。
 
 **请求**
 
@@ -127,9 +158,9 @@
 
 ---
 
-### 5. POST /api/add_stock
+### 6. POST /api/add_stock
 
-抓取指定股票代码数据 → 保存为 CSV → 将代码追加到 config 的 `stocks`。
+抓取该股票**近 5 年**日线 → 写入数据库（stock_meta + stock_daily）→ 将代码追加到 config 的 `stocks`。
 
 **请求**
 
@@ -153,6 +184,39 @@
 
 ---
 
+### 7. GET /api/config
+
+获取当前 `config.yaml` 内容（日期范围、复权、股票列表等），供前端数据管理页展示与编辑。
+
+**响应 200**：JSON 对象，键与 config 一致（如 `start_date`, `end_date`, `adjust`, `stocks`, `mysql` 等）。
+
+---
+
+### 8. PUT /api/config
+
+更新 config。请求体可含 `start_date`, `end_date`, `adjust`, `stocks`, `output_dir` 等，与现有配置合并后写回 `config.yaml`。
+
+**响应 200**：`{ "ok": true, "message": "已保存" }`；失败时 `ok: false`。
+
+---
+
+### 9. POST /api/sync_all
+
+全量同步：先清空数据库中全部日线与元信息，再按 config 的 `stocks` 逐个拉取并写入。适用于「重置后按当前配置重建数据」。
+
+**响应 200**：`{ "ok": true, "results": [ { "symbol": "...", "ok": true/false, "message": "..." }, ... ] }`。
+
+---
+
+### 10. POST /api/remove_stock
+
+从 config 的 `stocks` 中移除指定代码，并删除数据库中该股票的全部日线与元信息。
+
+**请求**：Body JSON `{ "code": "600519" }`。  
+**响应 200**：`{ "ok": true, "message": "已移除" }`；若本就不在配置中则 `message`: "已不在配置中"。
+
+---
+
 ## 五、图表数据格式（ECharts 用）
 
 以下接口返回的「单只股票日线」均为同一结构，便于前端统一处理：
@@ -171,7 +235,7 @@
 | `最低` | number[] | 最低价 |
 | `成交量` | number[] | 成交量 |
 | `成交额` | number[] | 成交额 |
-| 其他 | - | CSV 中其余列同样按列名成数组返回 |
+| 其他 | - | 日线其余列（如 `振幅`、`涨跌幅`、`换手率`）同样按列名成数组返回 |
 
 前端可直接用 `dates` 作 x 轴，`开盘/收盘/最高/最低` 等作 series。
 
@@ -192,9 +256,10 @@
 | `save_stock_db(symbol, df, name?)` | 写入 stock_meta + stock_daily |
 | `df_to_chart_result(df)` | DataFrame → 图表 JSON |
 | `get_date_range_from_config()` | 从 config 取 start/end/adjust |
-| `update_all_stocks()` | 批量拉取并保存，返回每只结果 |
+| `update_daily_stocks()` | 增量更新：按 stock_meta.last_trade_date 只拉取缺失日期至今天（/api/update_all 使用） |
+| `update_all_stocks()` | 按 config 全量拉取并覆盖（可选，当前前端用增量更新） |
 | `add_stock_to_config(symbol)` | 将代码追加到 config.stocks |
-| `add_stock_and_fetch(symbol)` | 抓取 + 保存 + 写配置 |
+| `add_stock_and_fetch(symbol)` | 抓取近 5 年 + 写入 DB + 写配置 |
 
 新增接口时可直接调用上述函数，或在此基础上封装新能力（如按日期范围过滤、多股票合并等）。
 
@@ -203,24 +268,22 @@
 ## 七、后期拓展建议
 
 1. **接口**
-   - 增加按日期范围查询：如 `GET /api/data?file=xxx&start=2025-01-01&end=2025-06-01`，在返回前对 `dates` 及对应列做过滤。
-   - 增加删除股票：如 `DELETE /api/stock/<code>`，删除本地 CSV 并从 config.stocks 移除。
-   - 支持分页或游标：若 list 很多，可加 `page`/`size` 或 `cursor`。
+   - 按日期范围查询：如 `GET /api/data?file=xxx&start=2025-01-01&end=2025-06-01`，在返回前对 `dates` 及对应列做过滤。
+   - 每日增量更新：增加 `POST /api/update_daily`，内部调用 `update_daily_stocks()`，供定时任务或前端「每日更新」按钮调用。
+   - 列表分页或游标：若股票很多，可对 `/api/list` 加 `page`/`size` 或 `cursor`。
 
 2. **配置**
-   - 将 config 暴露为只读接口：如 `GET /api/config`，便于前端展示当前时间范围、复权方式。
-   - 支持运行时修改 config（需鉴权与校验），或通过环境变量覆盖部分配置。
+   - 已有 `GET /api/config`、`PUT /api/config`；可对修改接口做鉴权或环境变量覆盖部分配置。
 
 3. **数据**
-   - 缓存：对 `fetch_hist` 结果做内存/文件缓存并设置 TTL，减少对 akshare 的重复请求。
    - 更多数据源：在 utils 中抽象「数据源接口」，除 akshare 外接入其他 API，由 config 或参数选择。
 
 4. **安全与部署**
-   - 对 POST /api/update_all、POST /api/add_stock 做频率限制或简单鉴权。
+   - 对 POST 写操作（update_all、add_stock、sync_all、remove_stock、config）做频率限制或鉴权。
    - 生产环境使用 Gunicorn/uWSGI + Nginx，关闭 debug。
 
 5. **前端**
-   - 列表支持搜索、排序；展示每条数据的最后更新时间（若在 list 或 data 中返回）。
-   - 错误码统一为数值，便于前端分支处理（如 40001 参数错误、50201 拉取失败）。
+   - 列表支持搜索、排序；展示每条数据的最后更新时间（可从 list 或单独接口返回 `last_trade_date`）。
+   - 错误码统一为数值，便于前端分支处理。
 
-文档与接口注释会随代码更新，拓展时请同步修改本文档与 `server.py` 中的注释。
+文档与接口注释会随代码更新，拓展时请同步修改本文档。

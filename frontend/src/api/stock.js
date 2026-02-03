@@ -55,3 +55,22 @@ export function apiRemoveStock(code) {
     body: JSON.stringify({ code }),
   })
 }
+
+/** 更新股票说明（用户手动输入） */
+export function apiUpdateStockRemark(symbol, remark) {
+  return request('/api/stock_remark', {
+    method: 'PUT',
+    body: JSON.stringify({ symbol, remark: remark ?? '' }),
+  })
+}
+
+/** 按日期范围查询多只股票日线，分页。symbols 逗号分隔，start/end YYYY-MM-DD */
+export function apiDataRange({ symbols, start, end, page = 1, size = 20 }) {
+  const params = new URLSearchParams()
+  params.set('symbols', symbols)
+  if (start) params.set('start', start)
+  if (end) params.set('end', end)
+  params.set('page', String(page))
+  params.set('size', String(size))
+  return request('/api/data_range?' + params.toString())
+}

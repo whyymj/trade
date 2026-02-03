@@ -17,15 +17,18 @@ from server.utils import (
     remove_stock_from_config,
     save_config,
     sync_all_from_config,
-    update_all_stocks,
+    update_daily_stocks,
 )
 
 
 def _list_stocks():
-    """从数据库返回股票列表，每项含 filename（symbol）与 displayName。"""
+    """从数据库返回股票列表，每项含 filename（symbol）、displayName、remark。"""
     from data import stock_repo
     items = stock_repo.list_stocks_from_db()
-    return [{"filename": x["symbol"], "displayName": x["displayName"]} for x in items]
+    return [
+        {"filename": x["symbol"], "displayName": x["displayName"], "remark": x.get("remark") or ""}
+        for x in items
+    ]
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
 
@@ -45,8 +48,8 @@ def fetch_data(stock_code: str):
 
 @api_bp.route("/update_all", methods=["POST"])
 def update_all():
-    """一键更新全部股票数据。"""
-    result = update_all_stocks()
+    """一键更新全部：按库内最后交易日增量拉取到今天（只补缺失区间）。"""
+    result = update_daily_stocks()
     return jsonify({"ok": True, "results": result})
 
 
@@ -113,6 +116,50 @@ def sync_all():
     """全量同步：清空数据目录后按 config.stocks 逐个拉取并保存（等同 fetch_stock_data 逻辑）。"""
     result = sync_all_from_config(clear_first=True)
     return jsonify({"ok": True, "results": result})
+
+
+@api_bp.route("/data_range", methods=["GET"])
+def get_data_range():
+    """
+    按日期范围查询多只股票日线，分页。
+    Query: symbols=600519,000001（逗号分隔）, start=YYYY-MM-DD, end=YYYY-MM-DD, page=1, size=20
+    """
+    from data import stock_repo
+
+    symbols_str = request.args.get("symbols", "").strip()
+    if not symbols_str:
+        return jsonify({"error": "缺少 symbols 参数（逗号分隔股票代码）"}), 400
+    symbols = [s.strip() for s in symbols_str.split(",") if s.strip()]
+    if not symbols:
+        return jsonify({"error": "symbols 为空"}), 400
+    start = request.args.get("start", "").strip()
+    end = request.args.get("end", "").strip()
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+        size = max(1, min(500, int(request.args.get("size", 20))))
+    except (TypeError, ValueError):
+        page, size = 1, 20
+    try:
+        out = stock_repo.get_stock_daily_by_range(symbols, start or None, end or None, page=page, page_size=size)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    return jsonify(out)
+
+
+@api_bp.route("/stock_remark", methods=["PUT", "PATCH"])
+def update_stock_remark():
+    """更新股票说明（用户手动输入）。Body: { "symbol": "600519", "remark": "说明文字" }。"""
+    from data import stock_repo as repo
+
+    body = request.get_json(silent=True) or {}
+    symbol = (body.get("symbol") or "").strip()
+    if not symbol:
+        return jsonify({"ok": False, "message": "缺少 symbol"}), 400
+    remark = body.get("remark")
+    if remark is not None and not isinstance(remark, str):
+        remark = str(remark)
+    repo.update_stock_remark(symbol, remark)
+    return jsonify({"ok": True, "message": "已保存"})
 
 
 @api_bp.route("/remove_stock", methods=["POST"])

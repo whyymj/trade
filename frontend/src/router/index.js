@@ -13,6 +13,12 @@ const routes = [
     component: () => import('@/views/DataManage.vue'),
     meta: { title: '数据管理' },
   },
+  {
+    path: '/data-range',
+    name: 'DataRange',
+    component: () => import('@/views/DataRange.vue'),
+    meta: { title: '按日期范围查询' },
+  },
 ]
 
 const router = createRouter({

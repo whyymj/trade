@@ -286,14 +286,17 @@ def add_stock_to_config(symbol: str) -> bool:
 
 def add_stock_and_fetch(symbol: str) -> dict:
     """
-    抓取该股票数据并写入数据库，并将代码加入 config.stocks。
+    抓取该股票近 5 年日线并写入数据库，并将代码加入 config.stocks。
     支持 A 股 6 位数字、港股 5 位数字或 xxxxx.HK。
     返回 { "ok": bool, "message": str, "displayName": str 可选 }
     """
     symbol = str(symbol).strip()
     if not symbol or not is_valid_stock_code(symbol):
         return {"ok": False, "message": "股票代码需为 A股6位数字 或 港股5位数字/5位.HK"}
-    start_date, end_date, adjust = get_date_range_from_config()
+    today = datetime.now().date()
+    start_date = (today - timedelta(days=5 * 365)).strftime("%Y%m%d")
+    end_date = today.strftime("%Y%m%d")
+    _, _, adjust = get_date_range_from_config()
     df = fetch_hist_remote(symbol, start_date, end_date, adjust)
     if df is None or df.empty:
         return {"ok": False, "message": "拉取数据失败或暂无数据"}

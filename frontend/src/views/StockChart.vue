@@ -4,53 +4,48 @@
     <p class="subtitle">选择股票查看 K 线相关数据</p>
 
     <div class="nav-row">
-      <router-link to="/data-manage" class="link">数据管理</router-link>
+      <el-link type="primary" :underline="false" router to="/data-manage">数据管理</el-link>
+      <el-link type="primary" :underline="false" router to="/data-range">按日期范围查询</el-link>
     </div>
 
     <div class="toolbar">
       <div class="toolbar-row">
-        <label for="stock">选择股票：</label>
-        <select id="stock" v-model="selectedValue" @change="onStockChange">
-          <option value="">-- 请选择 --</option>
-          <option
+        <span class="label">选择股票：</span>
+        <el-select
+          v-model="selectedValue"
+          placeholder="请选择"
+          clearable
+          filterable
+          style="width: 220px"
+          @change="onStockChange"
+        >
+          <el-option
             v-for="item in stockStore.fileList"
             :key="item.filename"
+            :label="item.displayName || item.filename"
             :value="encodeURIComponent(item.filename)"
-          >
-            {{ item.displayName || item.filename }}
-          </option>
-        </select>
+          />
+        </el-select>
       </div>
       <div class="toolbar-row">
-        <label for="stockCode">股票代码：</label>
-        <input
-          id="stockCode"
+        <span class="label">股票代码：</span>
+        <el-input
           v-model="stockCode"
-          type="text"
           placeholder="如 600519 或 09678.HK"
           maxlength="10"
+          style="width: 160px"
           @input="onCodeInput"
         />
-        <button
-          type="button"
-          class="btn btn-primary"
-          :disabled="addingStock"
-          @click="handleAddStock"
-        >
-          抓取并加入配置
-        </button>
-        <button
-          type="button"
-          class="btn btn-secondary"
-          :disabled="updatingAll"
-          @click="handleUpdateAll"
-        >
-          一键更新全部数据
-        </button>
+        <el-button type="primary" :loading="addingStock" @click="handleAddStock">
+          抓取近5年并加入配置
+        </el-button>
+        <el-button :loading="updatingAll" @click="handleUpdateAll">
+          增量更新（补全至今日）
+        </el-button>
       </div>
     </div>
 
-    <div class="chart-wrap">
+    <div v-loading="appStore.loading" class="chart-wrap">
       <div class="chart-title">价格走势（开盘 / 收盘 / 最高 / 最低）</div>
       <div ref="priceChartRef" class="chart"></div>
     </div>
@@ -60,21 +55,13 @@
       <div ref="volumeChartRef" class="chart volume"></div>
     </div>
 
-    <div v-show="appStore.loading" class="loading">加载中…</div>
-    <div v-show="appStore.errorMessage" class="error">
-      {{ appStore.errorMessage }}
-    </div>
-    <div
-      v-show="appStore.toastVisible"
-      class="toast show"
-    >
-      {{ appStore.toastMessage }}
-    </div>
+    <el-alert v-if="appStore.errorMessage" type="error" :title="appStore.errorMessage" show-icon closable class="error-alert" />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
 import { useStockStore } from '@/stores/stock'
 import { useAppStore } from '@/stores/app'
@@ -96,15 +83,15 @@ const selectedValue = computed({
 let priceChart = null
 let volumeChart = null
 
-function onCodeInput(e) {
-  const v = e.target.value.trim().toUpperCase()
+function onCodeInput(val) {
+  const v = (val || '').trim().toUpperCase()
   if (/\.HK$/.test(v)) {
     stockCode.value = v
       .replace(/[^\d.]/g, '')
       .replace(/(\d{5})\.HK.*/, '$1.HK')
       .slice(0, 10)
   } else {
-    stockCode.value = e.target.value.replace(/\D/g, '').slice(0, 6)
+    stockCode.value = (val || '').replace(/\D/g, '').slice(0, 6)
   }
 }
 
@@ -276,7 +263,7 @@ async function onStockChange() {
 async function handleAddStock() {
   const code = stockCode.value.trim()
   if (!isStockCodeValid(code)) {
-    appStore.showToast('请输入 A股6位 或 港股5位/xxxxx.HK')
+    ElMessage.warning('请输入 A股6位 或 港股5位/xxxxx.HK')
     return
   }
   addingStock.value = true
@@ -284,14 +271,14 @@ async function handleAddStock() {
   try {
     const data = await stockStore.addStock(code)
     if (data?.ok) {
-      appStore.showToast(data.message || '已加入配置')
+      ElMessage.success(data.message || '已加入配置')
       stockCode.value = ''
       await stockStore.fetchList()
     } else {
-      appStore.showToast(data?.message || '失败')
+      ElMessage.error(data?.message || '失败')
     }
   } catch (e) {
-    appStore.showToast('请求失败: ' + (e.message || e.data?.message))
+    ElMessage.error('请求失败: ' + (e.message || e.data?.message))
   } finally {
     addingStock.value = false
   }
@@ -306,13 +293,13 @@ async function handleUpdateAll() {
     if (data?.ok && data?.results) {
       const ok = data.results.filter((r) => r.ok).length
       const fail = data.results.filter((r) => !r.ok).length
-      appStore.showToast('更新完成：成功 ' + ok + '，失败 ' + fail)
+      ElMessage.success('更新完成：成功 ' + ok + '，失败 ' + fail)
       await stockStore.fetchList()
     } else {
-      appStore.showToast('更新失败')
+      ElMessage.error('更新失败')
     }
   } catch (e) {
-    appStore.showToast('请求失败: ' + (e.message || e.data?.message))
+    ElMessage.error('请求失败: ' + (e.message || e.data?.message))
   } finally {
     appStore.setLoading(false)
     updatingAll.value = false
@@ -375,24 +362,12 @@ h1 {
   margin-bottom: 20px;
   flex-wrap: wrap;
 }
-label {
-  color: #a0aec0;
+.label {
+  color: var(--el-text-color-regular);
   font-size: 14px;
 }
-select {
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid #2d3748;
-  background: #1e293b;
-  color: #e2e8f0;
-  font-size: 14px;
-  min-width: 200px;
-  cursor: pointer;
-}
-select:hover,
-select:focus {
-  border-color: #00d9ff;
-  outline: none;
+.error-alert {
+  margin-top: 16px;
 }
 .chart-wrap {
   background: rgba(30, 41, 59, 0.6);
@@ -429,58 +404,10 @@ select:focus {
   margin-bottom: 12px;
   flex-wrap: wrap;
 }
-input[type='text'] {
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid #2d3748;
-  background: #1e293b;
-  color: #e2e8f0;
-  font-size: 14px;
-  width: 120px;
+.nav-row .el-link {
+  margin-left: 12px;
 }
-input[type='text']:focus {
-  border-color: #00d9ff;
-  outline: none;
-}
-.btn {
-  padding: 8px 16px;
-  border-radius: 8px;
-  border: none;
-  font-size: 14px;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-.btn:hover {
-  opacity: 0.9;
-}
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.btn-primary {
-  background: linear-gradient(135deg, #00d9ff, #00a8cc);
-  color: #0f172a;
-}
-.btn-secondary {
-  background: #334155;
-  color: #e2e8f0;
-}
-.toast {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 12px 24px;
-  border-radius: 8px;
-  background: #1e293b;
-  border: 1px solid #334155;
-  color: #e2e8f0;
-  font-size: 14px;
-  z-index: 1000;
-  opacity: 0;
-  transition: opacity 0.3s;
-}
-.toast.show {
-  opacity: 1;
+.nav-row .el-link:first-child {
+  margin-left: 0;
 }
 </style>

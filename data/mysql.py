@@ -1,15 +1,21 @@
 """
 本地 MySQL 连接与基本访问。依赖 PyMySQL、PyYAML，配置见项目根目录 config.yaml 的 mysql 段。
+优化：配置结果进程内缓存，减少重复读文件；批量操作可用 run_connection 单连接多语句。
 """
 import os
 import yaml  # type: ignore
 import pymysql  # type: ignore
 from contextlib import contextmanager
-from typing import Any, Optional
+from typing import Any, Callable, Optional
+
+_config_cache: Optional[dict] = None
 
 
 def load_mysql_config() -> dict:
-    """从 config.yaml 读取 MySQL 配置，未配置则使用默认本地参数。"""
+    """从 config.yaml 读取 MySQL 配置（进程内缓存），未配置则使用默认本地参数。"""
+    global _config_cache
+    if _config_cache is not None:
+        return _config_cache
     config_path = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
         "config.yaml",
@@ -23,11 +29,13 @@ def load_mysql_config() -> dict:
         "charset": "utf8mb4",
     }
     if not os.path.exists(config_path):
-        return defaults
+        _config_cache = defaults
+        return _config_cache
     with open(config_path, "r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f) or {}
     mysql_cfg = cfg.get("mysql") or {}
-    return {**defaults, **mysql_cfg}
+    _config_cache = {**defaults, **mysql_cfg}
+    return _config_cache
 
 
 @contextmanager
@@ -83,6 +91,15 @@ def fetch_all(sql: str, args: Optional[tuple] = None) -> list[dict[str, Any]]:
         with conn.cursor() as cur:
             cur.execute(sql, args or ())
             return cur.fetchall()
+
+
+def run_connection(fn: Callable[[Any], Any]) -> Any:
+    """
+    在单次连接内执行自定义逻辑，用于需多句 SQL 的批量操作，减少连接次数。
+    fn(conn) 可多次使用 conn.cursor() 执行 execute/executemany/fetch；返回 fn 的返回值。
+    """
+    with get_connection() as conn:
+        return fn(conn)
 
 
 def test_connection() -> bool:
