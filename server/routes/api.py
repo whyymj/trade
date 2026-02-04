@@ -4,6 +4,7 @@
 接口说明见项目根目录 docs/API.md。
 """
 from flask import Blueprint, Response, jsonify, request, send_from_directory
+import pandas as pd
 
 from server.utils import (
     add_stock_and_fetch,
@@ -300,3 +301,5 @@ def __quote_filename(name: str) -> str:
     """对文件名做 RFC 5987 编码，用于 Content-Disposition。"""
     from urllib.parse import quote
     return quote(name, safe="")
+
+

@@ -430,6 +430,23 @@ def generate_technical_section(tech_result: dict) -> str:
     cvar = tech_result.get("cvar_95")
     sections.append(f"| VaR(95%) | {format_number(var, 4)} | 日收益 95% 置信下界（负为亏损） |")
     sections.append(f"| CVaR(95%) | {format_number(cvar, 4)} | 超过 VaR 时的平均亏损 |")
+    # 价量指标
+    sections.append(f"| OBV（能量潮） | {format_number(last.get('obv'))} | 价涨加量、价跌减量累计 |")
+    sections.append(f"| MFI(14) | {format_number(last.get('mfi'))} | 资金流量指数，>80 超买 <20 超卖 |")
+    sections.append(f"| Aroon 上/下(20) | {format_number(last.get('aroon_up'))} / {format_number(last.get('aroon_down'))} | 趋势强度，上>下偏多 |")
+    sections.append(f"| 累计资金净流入 | {format_number(last.get('money_flow_cumulative'))} | 典型价×量按涨跌方向累计 |")
+    tier = last.get("money_flow_tier") or {}
+    if tier:
+        sections.append(f"| 大单/中单/小单净流入 | 大单 {format_number(tier.get('大单'))} / 中单 {format_number(tier.get('中单'))} / 小单 {format_number(tier.get('小单'))} | 按成交额分档近似 |")
+    sig = last.get("signals") or {}
+    if sig.get("combined"):
+        sections.append(f"| 超买超卖信号 | {sig.get('combined', '')} | RSI/MFI/Aroon 综合 |")
+    # 周线摘要
+    weekly = (tech_result.get("by_timeframe") or {}).get("weekly")
+    if weekly and weekly.get("last"):
+        wl = weekly["last"]
+        sections.append("\n### 周线周期（摘要）\n")
+        sections.append(f"- OBV(周): {format_number(wl.get('obv'))} | MFI(周): {format_number(wl.get('mfi'))} | Aroon上/下: {format_number(wl.get('aroon_up'))} / {format_number(wl.get('aroon_down'))}")
     return "\n".join(sections)
 
 
@@ -483,17 +500,28 @@ def generate_json_summary(
         },
     }
     if tech_result:
+        last = tech_result.get("last") or {}
         out["technical"] = {
-            "rsi": tech_result.get("last", {}).get("rsi"),
-            "macd": tech_result.get("last", {}).get("macd"),
-            "macd_hist": tech_result.get("last", {}).get("macd_hist"),
-            "bb_upper": tech_result.get("last", {}).get("bb_upper"),
-            "bb_mid": tech_result.get("last", {}).get("bb_mid"),
-            "bb_lower": tech_result.get("last", {}).get("bb_lower"),
-            "volatility_annual": tech_result.get("last", {}).get("volatility_annual"),
+            "rsi": last.get("rsi"),
+            "macd": last.get("macd"),
+            "macd_hist": last.get("macd_hist"),
+            "bb_upper": last.get("bb_upper"),
+            "bb_mid": last.get("bb_mid"),
+            "bb_lower": last.get("bb_lower"),
+            "volatility_annual": last.get("volatility_annual"),
             "var_95": tech_result.get("var_95"),
             "cvar_95": tech_result.get("cvar_95"),
+            "obv": last.get("obv"),
+            "mfi": last.get("mfi"),
+            "aroon_up": last.get("aroon_up"),
+            "aroon_down": last.get("aroon_down"),
+            "money_flow_cumulative": last.get("money_flow_cumulative"),
+            "money_flow_tier": last.get("money_flow_tier"),
+            "signals": last.get("signals"),
         }
+        weekly = (tech_result.get("by_timeframe") or {}).get("weekly")
+        if weekly and weekly.get("last"):
+            out["technical"]["weekly"] = weekly["last"]
     return out
 
 
@@ -600,6 +628,41 @@ def _build_charts_data(
                 "bb_lower": _safe_list(bb.get("lower")),
                 "rolling_volatility": _safe_list(vol),
             }
+            # 价量指标
+            obv = tech_result.get("obv")
+            mfi = tech_result.get("mfi")
+            aroon = tech_result.get("aroon") or {}
+            mf = tech_result.get("money_flow") or {}
+            if obv is not None:
+                charts["technical"]["obv"] = _safe_list(obv)
+            if mfi is not None:
+                charts["technical"]["mfi"] = _safe_list(mfi)
+            if aroon:
+                charts["technical"]["aroon_up"] = _safe_list(aroon.get("aroon_up"))
+                charts["technical"]["aroon_down"] = _safe_list(aroon.get("aroon_down"))
+            if mf:
+                charts["technical"]["money_flow_net"] = _safe_list(mf.get("net_flow"))
+                charts["technical"]["money_flow_cumulative"] = _safe_list(mf.get("cumulative_net"))
+                tier_series = mf.get("tier_series") or {}
+                if tier_series.get("大单") is not None:
+                    charts["technical"]["money_flow_large"] = _safe_list(tier_series["大单"].cumsum())
+                    charts["technical"]["money_flow_mid"] = _safe_list(tier_series["中单"].cumsum())
+                    charts["technical"]["money_flow_small"] = _safe_list(tier_series["小单"].cumsum())
+            # 周线图表数据
+            weekly = (tech_result.get("by_timeframe") or {}).get("weekly")
+            if weekly:
+                try:
+                    w_dates = [str(t) for t in weekly["obv"].index] if weekly.get("obv") is not None else []
+                    charts["technical_weekly"] = {
+                        "dates": w_dates,
+                        "obv": _safe_list(weekly.get("obv")),
+                        "mfi": _safe_list(weekly.get("mfi")),
+                        "aroon_up": _safe_list(weekly.get("aroon", {}).get("aroon_up")),
+                        "aroon_down": _safe_list(weekly.get("aroon", {}).get("aroon_down")),
+                        "money_flow_cumulative": _safe_list(weekly.get("money_flow", {}).get("cumulative_net")),
+                    }
+                except Exception:
+                    pass
         except Exception:
             pass
 
@@ -686,7 +749,7 @@ def run_analysis_from_dataframe(
     except (ValueError, TypeError) as e:
         complexity_result = {"skip_reason": str(e)}
 
-    tech_result = analyze_technical(prices, returns)
+    tech_result = analyze_technical(prices, returns, df=df)
 
     json_summary = generate_json_summary(
         stock_name, prices, time_result, freq_result, arima_result, complexity_result, tech_result

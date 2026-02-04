@@ -1,5 +1,8 @@
 <template>
   <div class="container">
+    <div class="nav-row">
+      <el-link type="primary" underline="never" class="nav-link" @click="$router.push('/chart')">股票曲线</el-link>
+    </div>
     <h1>股票列表</h1>
     <p class="subtitle">管理已配置股票，点击「查看」在新标签页打开曲线</p>
 
@@ -327,6 +330,8 @@ h1 {
   color: #8892a0;
   margin-bottom: 8px;
 }
+.nav-row { margin-bottom: 16px; display: flex; align-items: center; gap: 12px; }
+.nav-link { margin-left: 8px; }
 .toolbar {
   display: flex;
   align-items: center;

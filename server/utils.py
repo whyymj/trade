@@ -26,9 +26,12 @@ if _no_proxy:
 _no_proxy += "eastmoney.com,.eastmoney.com,push2his.eastmoney.com,quote.eastmoney.com"
 os.environ["NO_PROXY"] = os.environ["no_proxy"] = _no_proxy
 
+import logging
 import time
 
 import akshare as ak
+
+logger = logging.getLogger(__name__)
 import pandas as pd
 import yaml
 
@@ -165,13 +168,31 @@ def get_stock_name(symbol: str) -> str:
     return name if name else symbol
 
 
+def _clamp_dates_to_today(start_date: str, end_date: str) -> tuple[str, str]:
+    """将 end_date 限制为不超过今天，start_date 不超过 end_date，避免请求未来日期导致远端关闭连接。"""
+    today = datetime.now().date().strftime("%Y%m%d")
+    end_date = (end_date or "").strip().replace("-", "")[:8]
+    start_date = (start_date or "").strip().replace("-", "")[:8]
+    if not end_date:
+        end_date = today
+    if end_date > today:
+        end_date = today
+    if not start_date:
+        start_date = (datetime.now().date() - timedelta(days=365)).strftime("%Y%m%d")
+    if start_date > end_date:
+        start_date = end_date
+    return start_date, end_date
+
+
 def fetch_hist_remote(symbol: str, start_date: str, end_date: str, adjust: str = "qfq") -> tuple[pd.DataFrame | None, str | None]:
     """
     强制从 akshare 拉取单只股票日线，不读本地。A 股用 stock_zh_a_hist，港股用 stock_hk_hist。
+    结束日期自动限制为不超过今天，避免请求未来日期导致连接被关闭。
     连接失败时自动重试最多 5 次（退避 2s/4s/6s/8s）。返回 (df, None) 成功；(None, error_message) 失败。
     """
     symbol = (symbol or "").strip()
-    print(f"fetch_hist_remote: {symbol}, {start_date}, {end_date}, {adjust}")
+    start_date, end_date = _clamp_dates_to_today(start_date, end_date)
+    logger.debug("fetch_hist_remote: %s, %s, %s, %s", symbol, start_date, end_date, adjust)
     max_attempts = 5
     last_error: BaseException | None = None
 
@@ -206,10 +227,10 @@ def fetch_hist_remote(symbol: str, start_date: str, end_date: str, adjust: str =
             err_msg = f"{type(e).__name__}: {e}"
             if _is_retryable_connection_error(e) and attempt < max_attempts - 1:
                 wait = 2.0 * (attempt + 1)
-                print(f"fetch_hist_remote 连接异常，{wait}s 后重试 ({attempt + 1}/{max_attempts}): {err_msg}")
+                logger.warning("fetch_hist_remote 连接异常，%ss 后重试 (%s/%s): %s", wait, attempt + 1, max_attempts, err_msg)
                 time.sleep(wait)
             else:
-                print(f"fetch_hist_remote error: {err_msg}")
+                logger.warning("fetch_hist_remote error: %s", err_msg)
                 return (None, err_msg)
 
     err_msg = f"{type(last_error).__name__}: {last_error}" if last_error else "拉取失败"
@@ -273,15 +294,19 @@ def get_date_range_from_config() -> tuple[str, str, str]:
     返回 (start_date, end_date, adjust)，日期格式 YYYYMMDD。
     """
     cfg = load_config()
-    start_date = (cfg.get("start_date") or "").strip().replace("-", "")
-    end_date = (cfg.get("end_date") or "").strip().replace("-", "")
+    start_date = (cfg.get("start_date") or "").strip().replace("-", "")[:8]
+    end_date = (cfg.get("end_date") or "").strip().replace("-", "")[:8]
     adjust = (cfg.get("adjust") or "qfq").strip() or "qfq"
     today = datetime.now().date()
     if not end_date:
         end_date = today.strftime("%Y%m%d")
+    elif end_date > today.strftime("%Y%m%d"):
+        end_date = today.strftime("%Y%m%d")
     if not start_date:
         one_year_ago = today - timedelta(days=365)
         start_date = one_year_ago.strftime("%Y%m%d")
+    if start_date > end_date:
+        start_date = end_date
     return start_date, end_date, adjust
 
 

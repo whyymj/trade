@@ -58,6 +58,9 @@
             <el-descriptions-item label="主周期(天)">{{ analyzeResult.summary?.frequency_domain?.dominant_periods?.[0]?.period_days != null ? analyzeResult.summary.frequency_domain.dominant_periods[0].period_days.toFixed(1) : '-' }}</el-descriptions-item>
             <el-descriptions-item label="RSI(14)">{{ analyzeResult.summary?.technical?.rsi != null ? analyzeResult.summary.technical.rsi.toFixed(1) : '-' }}</el-descriptions-item>
             <el-descriptions-item label="VaR(95%)">{{ analyzeResult.summary?.technical?.var_95 != null ? (analyzeResult.summary.technical.var_95 * 100).toFixed(2) + '%' : '-' }}</el-descriptions-item>
+            <el-descriptions-item label="MFI(14)">{{ analyzeResult.summary?.technical?.mfi != null ? analyzeResult.summary.technical.mfi.toFixed(1) : '-' }}</el-descriptions-item>
+            <el-descriptions-item label="Aroon上/下">{{ analyzeResult.summary?.technical?.aroon_up != null && analyzeResult.summary?.technical?.aroon_down != null ? analyzeResult.summary.technical.aroon_up.toFixed(0) + ' / ' + analyzeResult.summary.technical.aroon_down.toFixed(0) : '-' }}</el-descriptions-item>
+            <el-descriptions-item label="信号">{{ analyzeResult.summary?.technical?.signals?.combined || '-' }}</el-descriptions-item>
           </el-descriptions>
         </div>
         <!-- 分析曲线：频域 / 时域 STL·ACF / 复杂度 Hurst -->
@@ -102,6 +105,26 @@
               <div class="analysis-chart-title">滚动波动率（年化）</div>
               <div class="analysis-chart-desc">20 日收益率标准差年化，衡量近期波动程度</div>
               <div ref="volChartRef" class="analysis-chart"></div>
+            </div>
+            <div v-if="analyzeResult?.charts?.technical?.obv?.length" class="analysis-chart-item">
+              <div class="analysis-chart-title">OBV（能量潮）</div>
+              <div class="analysis-chart-desc">价涨加成交量、价跌减成交量累计，反映资金堆积</div>
+              <div ref="obvChartRef" class="analysis-chart"></div>
+            </div>
+            <div v-if="analyzeResult?.charts?.technical?.mfi?.length" class="analysis-chart-item">
+              <div class="analysis-chart-title">MFI（资金流量指数）</div>
+              <div class="analysis-chart-desc">14 日典型价×成交量，&gt;80 超买 &lt;20 超卖</div>
+              <div ref="mfiChartRef" class="analysis-chart"></div>
+            </div>
+            <div v-if="analyzeResult?.charts?.technical?.aroon_up?.length" class="analysis-chart-item">
+              <div class="analysis-chart-title">阿隆指标（Aroon）</div>
+              <div class="analysis-chart-desc">20 日上行/下行线，识别趋势强度与方向</div>
+              <div ref="aroonChartRef" class="analysis-chart"></div>
+            </div>
+            <div v-if="analyzeResult?.charts?.technical?.money_flow_cumulative?.length" class="analysis-chart-item">
+              <div class="analysis-chart-title">资金流向（累计净流入）</div>
+              <div class="analysis-chart-desc">典型价×成交量按涨跌方向累计；大单/中单/小单为按成交额分档近似</div>
+              <div ref="moneyFlowChartRef" class="analysis-chart"></div>
             </div>
           </template>
         </div>
@@ -155,6 +178,14 @@
                 <dd>过去 N 日（如 20 日）收益率的标准差，再按年化（×√252）。数值越大表示近期波动越剧烈。</dd>
                 <dt>VaR / CVaR（在险价值 / 条件在险价值）</dt>
                 <dd>VaR(95%)：日收益在 95% 置信下的下界（负值表示亏损幅度）。CVaR 为超过 VaR 时的平均亏损。用于量化下行风险。</dd>
+                <dt>OBV（能量潮）</dt>
+                <dd>收盘价上涨日加上当日成交量、下跌日减去成交量、平盘不变，做累计。用于观察价量配合与资金堆积方向。</dd>
+                <dt>MFI（资金流量指数）</dt>
+                <dd>典型价格 = (高+低+收)/3，原始资金流 = 典型价×成交量；14 日内正负资金流比换算为 0～100。&gt;80 超买，&lt;20 超卖。</dd>
+                <dt>阿隆指标（Aroon）</dt>
+                <dd>20 日内最高价/最低价距今的天数换算为 0～100。Aroon 上 &gt; Aroon 下为偏多，上 &gt;70 且下 &lt;30 为强势，反之为弱势。</dd>
+                <dt>资金流向（大单/中单/小单）</dt>
+                <dd>按典型价×成交量与涨跌方向得每日净流入；大单/中单/小单为按成交额分档的近似（真实分档需 level-2 逐笔数据）。</dd>
               </dl>
               <h4>摘要指标简述</h4>
               <dl>
@@ -203,6 +234,10 @@ const rsiChartRef = ref(null)
 const macdChartRef = ref(null)
 const bbChartRef = ref(null)
 const volChartRef = ref(null)
+const obvChartRef = ref(null)
+const mfiChartRef = ref(null)
+const aroonChartRef = ref(null)
+const moneyFlowChartRef = ref(null)
 const loading = ref(false)
 const errorMessage = ref('')
 const rangeKey = ref('1y')
@@ -298,6 +333,10 @@ let rsiChart = null
 let macdChart = null
 let bbChart = null
 let volChart = null
+let obvChart = null
+let mfiChart = null
+let aroonChart = null
+let moneyFlowChart = null
 
 /** 计算移动平均，与 close 等长，前 period-1 个为 null，其后为 period 日均值 */
 function calcMA(close, period) {
@@ -580,6 +619,65 @@ function renderAnalysisCharts() {
         series: [{ type: 'line', data: tech.rolling_volatility, symbol: 'none', lineStyle: { width: 1.5, color: '#fbbf24' }, areaStyle: { opacity: 0.2 }, connectNulls: true }],
       })
     }
+    if (obvChartRef.value && tech.obv?.length) {
+      if (!obvChart) obvChart = echarts.init(obvChartRef.value)
+      obvChart.setOption({
+        tooltip: { trigger: 'axis', backgroundColor: 'rgba(30,41,59,0.95)', borderColor: '#334155' },
+        grid: gridCommon,
+        xAxis: { type: 'category', data: dates, ...axisStyle },
+        yAxis: { type: 'value', name: 'OBV', nameTextStyle: { color: '#94a3b8' }, ...axisStyle, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.06)' } } },
+        series: [{ type: 'line', data: tech.obv, symbol: 'none', lineStyle: { width: 1.5, color: '#22d3ee' }, areaStyle: { opacity: 0.15 }, connectNulls: true }],
+      })
+    }
+    if (mfiChartRef.value && tech.mfi?.length) {
+      if (!mfiChart) mfiChart = echarts.init(mfiChartRef.value)
+      mfiChart.setOption({
+        tooltip: { trigger: 'axis', backgroundColor: 'rgba(30,41,59,0.95)', borderColor: '#334155' },
+        grid: gridCommon,
+        xAxis: { type: 'category', data: dates, ...axisStyle },
+        yAxis: { type: 'value', min: 0, max: 100, name: 'MFI', nameTextStyle: { color: '#94a3b8' }, ...axisStyle, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.06)' } } },
+        series: [{ type: 'line', data: tech.mfi, symbol: 'none', lineStyle: { width: 1.5, color: '#a78bfa' }, connectNulls: true }],
+        markLine: { data: [{ yAxis: 80, lineStyle: { color: '#f87171', type: 'dashed' } }, { yAxis: 20, lineStyle: { color: '#34d399', type: 'dashed' } }], silent: true },
+      })
+    }
+    if (aroonChartRef.value && tech.aroon_up?.length) {
+      if (!aroonChart) aroonChart = echarts.init(aroonChartRef.value)
+      aroonChart.setOption({
+        tooltip: { trigger: 'axis', backgroundColor: 'rgba(30,41,59,0.95)', borderColor: '#334155' },
+        grid: gridCommon,
+        legend: { data: ['Aroon上', 'Aroon下'], textStyle: { color: '#94a3b8' }, top: 0 },
+        xAxis: { type: 'category', data: dates, ...axisStyle },
+        yAxis: { type: 'value', min: 0, max: 100, name: 'Aroon', nameTextStyle: { color: '#94a3b8' }, ...axisStyle, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.06)' } } },
+        series: [
+          { name: 'Aroon上', type: 'line', data: tech.aroon_up, symbol: 'none', lineStyle: { width: 1.5 }, connectNulls: true },
+          { name: 'Aroon下', type: 'line', data: tech.aroon_down, symbol: 'none', lineStyle: { width: 1.5 }, connectNulls: true },
+        ],
+        color: ['#34d399', '#f87171'],
+      })
+    }
+    if (moneyFlowChartRef.value && tech.money_flow_cumulative?.length) {
+      if (!moneyFlowChart) moneyFlowChart = echarts.init(moneyFlowChartRef.value)
+      const hasTier = tech.money_flow_large?.length && tech.money_flow_mid?.length && tech.money_flow_small?.length
+      const series = [
+        { name: '累计净流入', type: 'line', data: tech.money_flow_cumulative, symbol: 'none', lineStyle: { width: 2, color: '#00d9ff' }, connectNulls: true },
+      ]
+      if (hasTier) {
+        series.push(
+          { name: '大单', type: 'line', data: tech.money_flow_large, symbol: 'none', lineStyle: { width: 1 }, connectNulls: true },
+          { name: '中单', type: 'line', data: tech.money_flow_mid, symbol: 'none', lineStyle: { width: 1 }, connectNulls: true },
+          { name: '小单', type: 'line', data: tech.money_flow_small, symbol: 'none', lineStyle: { width: 1 }, connectNulls: true },
+        )
+      }
+      moneyFlowChart.setOption({
+        tooltip: { trigger: 'axis', backgroundColor: 'rgba(30,41,59,0.95)', borderColor: '#334155' },
+        grid: gridCommon,
+        legend: { data: series.map(s => s.name), textStyle: { color: '#94a3b8' }, top: 0 },
+        xAxis: { type: 'category', data: dates, ...axisStyle },
+        yAxis: { type: 'value', name: '资金流', nameTextStyle: { color: '#94a3b8' }, ...axisStyle, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.06)' } } },
+        series,
+        color: ['#00d9ff', '#f87171', '#fbbf24', '#34d399'],
+      })
+    }
   }
 }
 
@@ -625,6 +723,10 @@ function onResize() {
   macdChart?.resize()
   bbChart?.resize()
   volChart?.resize()
+  obvChart?.resize()
+  mfiChart?.resize()
+  aroonChart?.resize()
+  moneyFlowChart?.resize()
 }
 
 function goBack() {
@@ -642,6 +744,10 @@ function disposeAllCharts() {
   macdChart?.dispose()
   bbChart?.dispose()
   volChart?.dispose()
+  obvChart?.dispose()
+  mfiChart?.dispose()
+  aroonChart?.dispose()
+  moneyFlowChart?.dispose()
   priceChart = null
   volumeChart = null
   freqChart = null
@@ -652,6 +758,10 @@ function disposeAllCharts() {
   macdChart = null
   bbChart = null
   volChart = null
+  obvChart = null
+  mfiChart = null
+  aroonChart = null
+  moneyFlowChart = null
 }
 
 watch(symbol, () => {
@@ -672,6 +782,10 @@ watch(analyzeResult, (val) => {
     macdChart?.dispose()
     bbChart?.dispose()
     volChart?.dispose()
+    obvChart?.dispose()
+    mfiChart?.dispose()
+    aroonChart?.dispose()
+    moneyFlowChart?.dispose()
     freqChart = null
     stlChart = null
     acfChart = null
@@ -680,6 +794,10 @@ watch(analyzeResult, (val) => {
     macdChart = null
     bbChart = null
     volChart = null
+    obvChart = null
+    mfiChart = null
+    aroonChart = null
+    moneyFlowChart = null
   }
   if (chartData.value) renderPriceChart(chartData.value)
   nextTick(() => renderAnalysisCharts())
@@ -701,6 +819,10 @@ onUnmounted(() => {
   macdChart?.dispose()
   bbChart?.dispose()
   volChart?.dispose()
+  obvChart?.dispose()
+  mfiChart?.dispose()
+  aroonChart?.dispose()
+  moneyFlowChart?.dispose()
 })
 </script>
 
