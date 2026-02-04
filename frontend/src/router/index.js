@@ -1,5 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
+/** 前端页面统一前缀，与后端 /api 等接口区分，避免路径冲突 */
+export const APP_BASE = '/app'
+
 const routes = [
   {
     path: '/',
@@ -16,7 +19,7 @@ const routes = [
 ]
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(APP_BASE),
   routes,
 })
 

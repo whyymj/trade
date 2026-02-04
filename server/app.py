@@ -8,7 +8,7 @@ Flask 应用工厂：创建 app、注册蓝图、配置静态与 SPA 回退。
 import atexit
 from pathlib import Path
 
-from flask import Flask, g, request, send_from_directory
+from flask import Flask, abort, g, redirect, request, send_from_directory
 
 from server.logging_config import (
     init_logging,
@@ -19,6 +19,9 @@ from server.routes import api_bp
 
 ROOT = Path(__file__).resolve().parent.parent
 FRONTEND_DIST = ROOT / "frontend" / "dist"
+
+# 前端 SPA 路径前缀，与 /api 等接口区分
+APP_PATH_PREFIX = "app"
 
 
 def _run_cleanup():
@@ -42,8 +45,9 @@ def create_app(static_folder=None):
         create_all_tables()
     except Exception:
         pass
-    folder = str(static_folder or FRONTEND_DIST)
-    app = Flask(__name__, static_folder=folder, static_url_path="")
+    # 不设 static_folder，避免 Flask 默认静态路由对 /chart 等返回 404；由下方通配路由统一处理
+    dist = str(static_folder or FRONTEND_DIST)
+    app = Flask(__name__, static_folder=None)
     app.register_blueprint(api_bp)
 
     @app.before_request
@@ -66,15 +70,26 @@ def create_app(static_folder=None):
 
     @app.route("/")
     def index():
-        """SPA 入口。"""
-        return send_from_directory(app.static_folder, "index.html")
+        """根路径重定向到前端 SPA 前缀，避免与接口冲突。"""
+        return redirect(f"/{APP_PATH_PREFIX}", code=302)
 
     @app.route("/<path:path>")
     def serve_spa(path):
-        """静态文件或 SPA 回退（Vue Router history）。"""
-        file_path = Path(app.static_folder) / path
+        """静态文件按路径返回；仅对 /app 及 /app/* 做 SPA 回退；favicon.ico 映射为 favicon.svg。"""
+        path = path.strip()
+        if path == "favicon.ico":
+            return send_from_directory(dist, "favicon.svg", mimetype="image/svg+xml")
+        # 仅识别前端页面前缀：/app、/app/* 下先按静态文件查找，再回退 index.html
+        if path == APP_PATH_PREFIX or path.startswith(APP_PATH_PREFIX + "/"):
+            subpath = path[len(APP_PATH_PREFIX) + 1 :].strip()  # 如 "assets/xxx.js"
+            if subpath:
+                file_path = Path(dist) / subpath
+                if file_path.is_file():
+                    return send_from_directory(dist, subpath)
+            return send_from_directory(dist, "index.html")
+        file_path = Path(dist) / path
         if file_path.is_file():
-            return send_from_directory(app.static_folder, path)
-        return send_from_directory(app.static_folder, "index.html")
+            return send_from_directory(dist, path)
+        abort(404)
 
     return app

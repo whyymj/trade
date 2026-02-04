@@ -4,6 +4,52 @@
 
 ---
 
+## 快速排查清单（按顺序执行）
+
+在**本机**或**服务器**上逐条执行，根据结果判断问题点。
+
+```bash
+# 1. 后端是否在跑、端口是否通（期望输出 200）
+curl -s -o /dev/null -w "%{http_code}\n" http://118.190.155.0:5050/
+
+# 2. 曲线页用到的接口：是否有数据（无数据会 404，异常会 500；502 多为代理超时）
+curl -s -o /dev/null -w "%{http_code}\n" "http://118.190.155.0:5050/api/data?file=600519&start=2024-01-01&end=2026-02-04"
+
+# 3. 股票列表接口（期望 200）
+curl -s -o /dev/null -w "%{http_code}\n" "http://118.190.155.0:5050/api/list"
+```
+
+在**服务器**上（SSH 登录后）：
+
+```bash
+cd /home/admin/trade_analysis   # 或你的 REMOTE_PATH
+
+# 4. 容器是否都在跑
+docker compose ps
+
+# 5. 应用最近日志（访问一次页面后再看，有无报错、超时）
+docker compose logs --tail 100 trade-app
+
+# 6. 若怀疑 MySQL：进入 MySQL 容器测连库与库内是否有数据
+docker compose exec trade-mysql mysql -u root -ptrade_secret -e "USE trade_cache; SELECT COUNT(*) FROM stock_daily; SHOW TABLES;"
+```
+
+在**浏览器**里：
+
+1. 打开 **http://118.190.155.0:5050/chart?symbol=600519**
+2. 按 **F12** → **Network**，刷新
+3. 看哪个请求是 **红色**（失败）或一直 **Pending**，记下该请求的 **URL** 和 **状态码**
+
+| 现象 | 可能原因 | 下一步 |
+|------|----------|--------|
+| 步骤 1 非 200 / 超时 | 后端未起、端口未放行、防火墙 | 检查 `docker compose ps`、安全组 5050 |
+| 步骤 2 为 404 | 该股票在库里无数据 | 首页添加该股票并「一键更新」后再试 |
+| 步骤 2 为 502 | 代理超时或上游挂掉 | 看 `docker compose logs trade-app`、若有 Nginx 则加大超时 |
+| 步骤 2 为 500 | 后端异常 | 看 `docker compose logs trade-app` 里的 traceback |
+| Network 里 /api/data 红/502 | 同上 | 同上 + 确保该股票已同步到库 |
+
+---
+
 ## 1. 确认是「页面不出现」还是「页面出现但数据一直转圈」
 
 - **页面空白或一直转圈**：可能是首屏 HTML/JS 没返回，或前端加载后调用的第一个接口卡住。
@@ -113,3 +159,19 @@ docker compose ps trade-mysql
 | 5 | 检查 MySQL 连接与 Docker 网络/环境变量 | 排除数据库导致的阻塞 |
 
 按上述顺序做一遍，通常能定位到是「前端 / 网络 / 后端 / 数据库」哪一环导致一直加载、无返回。
+
+---
+
+## 九、访问 /chart?symbol=xxx 报 502
+
+**502 Bad Gateway** 一般由**反向代理**（如 Nginx）返回，表示上游（本应用）未在约定时间内正常响应或连接异常。
+
+常见原因与处理：
+
+| 原因 | 处理 |
+|------|------|
+| **上游超时** | 曲线页会请求 `/api/data?file=股票代码`。若该股票在远端库中无数据，后端会尝试用 akshare 拉取，可能较慢或失败。**处理**：先在首页把该股票加入列表并执行「一键更新」，让数据落库后再访问曲线页。 |
+| **后端崩溃/未启动** | 在服务器上执行 `docker compose logs -f trade-app` 看是否有报错；`docker compose ps` 确认 trade-app 在运行。 |
+| **代理超时时间过短** | 若前面有 Nginx 等，适当调大 `proxy_read_timeout` / `proxy_connect_timeout`。 |
+
+接口侧：无数据时已改为返回 **404**（并带提示文案），不再因未捕获异常导致进程退出；若仍出现 502，请结合代理与容器日志排查。
