@@ -19,6 +19,8 @@ config.yaml
 output
 *.log
 data/mysql.log
+.deploy-rev
+.last-built-rev
 
 # 版本控制与 IDE
 .git

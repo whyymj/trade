@@ -4,8 +4,10 @@ FROM node:20-alpine AS frontend-builder
 WORKDIR /build
 
 # 先复制依赖清单，安装后再复制源码（便于利用 Docker 层缓存）
+# 使用 BuildKit 缓存挂载，pnpm store 跨构建复用，避免重复下载（需 DOCKER_BUILDKIT=1）
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
-RUN corepack enable pnpm && pnpm install --frozen-lockfile
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    corepack enable pnpm && pnpm install --frozen-lockfile
 RUN test -f node_modules/.bin/vite || pnpm add -D vite @vitejs/plugin-vue
 COPY frontend/ ./
 RUN pnpm run build
@@ -19,7 +21,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+# 使用 BuildKit 缓存挂载，pip 下载的包跨构建复用（需 DOCKER_BUILDKIT=1）
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements.txt
 
 # 后端与数据层、分析模块
 COPY server.py ./
