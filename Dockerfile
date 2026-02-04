@@ -5,9 +5,11 @@ WORKDIR /build
 
 # 先复制依赖清单，安装后再复制源码（便于利用 Docker 层缓存）
 # 使用 BuildKit 缓存挂载，pnpm store 跨构建复用，避免重复下载（需 DOCKER_BUILDKIT=1）
+# 发布流程默认使用国内 npm 镜像（见 docker-compose.yml build.args）
+ARG PNPM_REGISTRY=https://registry.npmmirror.com
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
-    corepack enable pnpm && pnpm install --frozen-lockfile
+    corepack enable pnpm && pnpm config set registry "$PNPM_REGISTRY" && pnpm install --frozen-lockfile
 RUN test -f node_modules/.bin/vite || pnpm add -D vite @vitejs/plugin-vue
 COPY frontend/ ./
 RUN pnpm run build
@@ -22,8 +24,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY requirements.txt ./
 # 使用 BuildKit 缓存挂载，pip 下载的包跨构建复用（需 DOCKER_BUILDKIT=1）
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -r requirements.txt
+# 发布流程默认使用国内镜像源加速（见 docker-compose.yml build.args）
+ARG PIP_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
+RUN --mount=type=cache,target=/root/.cache/pip,id=trade-pip-cache \
+    pip install -r requirements.txt -i "$PIP_INDEX"
 
 # 后端与数据层、分析模块
 COPY server.py ./

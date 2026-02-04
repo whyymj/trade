@@ -2,6 +2,7 @@
 # 将当前项目同步到云服务器并在远端用 Docker 启动（以 admin 用户部署，不操作 root）
 # 使用前确保本机可 ssh 到 SERVER，且远端已安装 Docker 与 Docker Compose
 # 同步方式：若远端有 rsync 则用 rsync，否则用 tar+ssh（不依赖远端装 rsync）
+# pip / pnpm 使用国内镜像（docker-compose.yml build.args），加速远端构建
 set -e
 
 SERVER="${SERVER:-admin@118.190.155.0}"

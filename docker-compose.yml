@@ -1,6 +1,11 @@
 services:
   trade-app:
-    build: .
+    build:
+      context: .
+      args:
+        # 发布时使用国内镜像，加速构建
+        PIP_INDEX: https://pypi.tuna.tsinghua.edu.cn/simple
+        PNPM_REGISTRY: https://registry.npmmirror.com
     image: trade-app:latest
     container_name: trade-app
     ports:
