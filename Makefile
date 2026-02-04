@@ -5,14 +5,14 @@ backend:
 	python server.py
 
 frontend:
-	cd frontend && npm run dev
+	cd frontend && pnpm run dev
 
 build:
-	cd frontend && npm run build
+	cd frontend && pnpm run build
 
 install:
 	pip install -r requirements.txt
-	cd frontend && npm install
+	cd frontend && pnpm install
 
 # 开发：需在两个终端分别执行 make backend 与 make frontend
 dev: install

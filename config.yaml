@@ -1,12 +1,11 @@
 start_date: ''
 end_date: ''
 adjust: qfq
-# 本地 MySQL 配置（可选）
 mysql:
   host: 127.0.0.1
   port: 3306
   user: root
-  password: 'Belldandy_13579'
+  password: Belldandy_13579
   database: trade_cache
   charset: utf8mb4
 stocks:
@@ -15,5 +14,6 @@ stocks:
 - '300024'
 - '688256'
 - '688158'
-- '09678.HK'
+- 09678.HK
+- '300785'
 output_dir: data

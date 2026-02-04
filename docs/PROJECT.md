@@ -64,7 +64,7 @@ trade/
 │   │   ├── router/        # 路由配置
 │   │   ├── stores/         # Pinia（app、stock）
 │   │   └── views/          # 页面（如 StockChart.vue）
-│   └── dist/               # 构建产物（npm run build）
+│   └── dist/               # 构建产物（pnpm run build）
 ├── Makefile                # 简化命令：backend、frontend、build、install
 ├── requirements.txt        # Python 依赖
 └── README.md               # 快速入门与启动说明
@@ -84,8 +84,8 @@ trade/
 
 ### 4.2 前端
 
-- **开发**：在 `frontend/` 下执行 `npm run dev`，默认端口 5173，Vite 将 `/api` 代理到后端 5050。
-- **生产**：在 `frontend/` 下执行 `npm run build`，产物输出到 `frontend/dist`，由后端统一提供。
+- **开发**：在 `frontend/` 下执行 `pnpm run dev`，默认端口 5173，Vite 将 `/api` 代理到后端 5050。
+- **生产**：在 `frontend/` 下执行 `pnpm run build`，产物输出到 `frontend/dist`，由后端统一提供。
 - **职责**：股票选择、代码输入、抓取/一键更新、价格与成交量 ECharts 展示；路由与状态（Pinia）便于扩展新页面。
 
 ### 4.3 配置与数据
@@ -137,7 +137,7 @@ mysql:
 
 2. **前端**（热更新，端口 5173，代理 /api 到 5050）  
    ```bash
-   cd frontend && npm install && npm run dev
+   cd frontend && pnpm install && pnpm run dev
    ```
    或：`make frontend`  
    浏览器访问：http://localhost:5173
@@ -146,7 +146,7 @@ mysql:
 
 1. 构建前端：  
    ```bash
-   cd frontend && npm run build
+   cd frontend && pnpm run build
    ```
    或：`make build`
 
@@ -165,7 +165,7 @@ mysql:
 ```bash
 make install
 ```
-会执行：`pip install -r requirements.txt` 与 `cd frontend && npm install`。
+会执行：`pip install -r requirements.txt` 与 `cd frontend && pnpm install`。
 
 ---
 

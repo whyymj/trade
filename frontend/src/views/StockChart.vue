@@ -1,98 +1,241 @@
 <template>
   <div class="container">
-    <h1>股票数据曲线</h1>
-    <p class="subtitle">选择股票查看 K 线相关数据</p>
-
-    <div class="nav-row">
-      <el-link type="primary" :underline="false" router to="/data-manage">数据管理</el-link>
-      <el-link type="primary" :underline="false" router to="/data-range">按日期范围查询</el-link>
-    </div>
+    <h1>股票列表</h1>
+    <p class="subtitle">管理已配置股票，点击「查看」在新标签页打开曲线</p>
 
     <div class="toolbar">
-      <div class="toolbar-row">
-        <span class="label">选择股票：</span>
-        <el-select
-          v-model="selectedValue"
-          placeholder="请选择"
-          clearable
-          filterable
-          style="width: 220px"
-          @change="onStockChange"
-        >
-          <el-option
-            v-for="item in stockStore.fileList"
-            :key="item.filename"
-            :label="item.displayName || item.filename"
-            :value="encodeURIComponent(item.filename)"
+      <el-button type="primary" @click="openAddDialog">新增股票</el-button>
+      <el-button :loading="updatingAll" @click="openUpdatePeriodDialog">
+        一次性全部更新
+      </el-button>
+    </div>
+
+    <el-card shadow="never" class="list-card">
+      <el-table :data="stockStore.fileList" stripe style="width: 100%">
+        <el-table-column prop="filename" label="股票代码" min-width="120" />
+        <el-table-column prop="displayName" label="股票名称" min-width="140" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ row.displayName || '—' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="lastUpdateDate" label="最后更新日期" width="130">
+          <template #default="{ row }">
+            {{ row.lastUpdateDate || '—' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="remark" label="说明" min-width="200" show-overflow-tooltip />
+        <el-table-column label="操作" width="160" fixed="right">
+          <template #default="{ row }">
+            <el-button type="primary" link @click="openChart(row)">查看</el-button>
+            <el-button type="primary" link @click="openEditDialog(row)">修改</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-empty v-if="!stockStore.fileList.length && !appStore.loading" description="暂无股票，请点击「新增股票」添加" :image-size="80" />
+    </el-card>
+
+    <el-dialog
+      v-model="addDialogVisible"
+      title="新增股票"
+      width="400px"
+      :close-on-click-modal="false"
+      @closed="resetAddForm"
+    >
+      <el-form :model="addForm" label-width="80px">
+        <el-form-item label="股票代码" required>
+          <el-input
+            v-model="addForm.code"
+            placeholder="如 600519 或 09678.HK"
+            maxlength="10"
+            clearable
+            @input="onAddCodeInput"
           />
-        </el-select>
-      </div>
-      <div class="toolbar-row">
-        <span class="label">股票代码：</span>
-        <el-input
-          v-model="stockCode"
-          placeholder="如 600519 或 09678.HK"
-          maxlength="10"
-          style="width: 160px"
-          @input="onCodeInput"
-        />
-        <el-button type="primary" :loading="addingStock" @click="handleAddStock">
-          抓取近5年并加入配置
+        </el-form-item>
+        <el-form-item label="股票说明">
+          <el-input
+            v-model="addForm.remark"
+            type="textarea"
+            placeholder="可选，便于区分多只股票"
+            :rows="3"
+            maxlength="200"
+            show-word-limit
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="addDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="addingStock" @click="handleAddStockSubmit">
+          确定
         </el-button>
-        <el-button :loading="updatingAll" @click="handleUpdateAll">
-          增量更新（补全至今日）
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="updatePeriodDialogVisible"
+      title="选择更新周期"
+      width="360px"
+      :close-on-click-modal="true"
+    >
+      <p class="update-period-tip">选择要拉取的日线数据时间范围：</p>
+      <el-radio-group v-model="updatePeriodValue" class="update-period-options">
+        <el-radio label="last">最后更新日期至今</el-radio>
+        <el-radio label="3y">近 3 年</el-radio>
+        <el-radio label="5y">近 5 年</el-radio>
+        <el-radio label="10y">近 10 年</el-radio>
+      </el-radio-group>
+      <template #footer>
+        <el-button @click="updatePeriodDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="updatingAll" @click="confirmUpdateAll">
+          开始更新
         </el-button>
-      </div>
-    </div>
+      </template>
+    </el-dialog>
 
-    <div v-loading="appStore.loading" class="chart-wrap">
-      <div class="chart-title">价格走势（开盘 / 收盘 / 最高 / 最低）</div>
-      <div ref="priceChartRef" class="chart"></div>
-    </div>
+    <el-dialog
+      v-model="editDialogVisible"
+      title="修改股票信息"
+      width="400px"
+      :close-on-click-modal="false"
+      @closed="resetEditForm"
+    >
+      <el-form :model="editForm" label-width="80px">
+        <el-form-item label="股票代码">
+          <el-input v-model="editForm.symbol" disabled />
+        </el-form-item>
+        <el-form-item label="股票名称">
+          <el-input
+            v-model="editForm.name"
+            placeholder="选填，如贵州茅台"
+            maxlength="128"
+            show-word-limit
+            clearable
+          />
+        </el-form-item>
+        <el-form-item label="股票说明">
+          <el-input
+            v-model="editForm.remark"
+            type="textarea"
+            placeholder="选填，便于区分多只股票"
+            :rows="3"
+            maxlength="200"
+            show-word-limit
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="savingRemark" @click="handleEditSubmit">
+          保存
+        </el-button>
+      </template>
+    </el-dialog>
 
-    <div class="chart-wrap">
-      <div class="chart-title">成交量</div>
-      <div ref="volumeChartRef" class="chart volume"></div>
-    </div>
-
+    <div v-loading="appStore.loading" class="loading-wrap" />
     <el-alert v-if="appStore.errorMessage" type="error" :title="appStore.errorMessage" show-icon closable class="error-alert" @close="appStore.setError('')" />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import * as echarts from 'echarts'
 import { useStockStore } from '@/stores/stock'
 import { useAppStore } from '@/stores/app'
+import { apiUpdateStockRemark } from '@/api/stock'
 
+const router = useRouter()
 const stockStore = useStockStore()
 const appStore = useAppStore()
 
-const priceChartRef = ref(null)
-const volumeChartRef = ref(null)
-const stockCode = ref('')
+const addDialogVisible = ref(false)
+const addForm = reactive({ code: '', remark: '' })
 const addingStock = ref(false)
 const updatingAll = ref(false)
 
-const selectedValue = computed({
-  get: () => stockStore.selectedFilename,
-  set: (v) => stockStore.setSelected(v),
-})
+const UPDATE_PERIOD_OPTIONS = [
+  { id: '1m', label: '近 1 个月', payload: { months: 1 } },
+  { id: '3y', label: '近 3 年', payload: { years: 3 } },
+  { id: '5y', label: '近 5 年', payload: { years: 5 } },
+  { id: '10y', label: '近 10 年', payload: { years: 10 } },
+]
+const updatePeriodDialogVisible = ref(false)
+const updatePeriodValue = ref('last')
 
-let priceChart = null
-let volumeChart = null
+const editDialogVisible = ref(false)
+const editForm = reactive({ symbol: '', name: '', remark: '' })
+const savingRemark = ref(false)
 
-function onCodeInput(val) {
+function openUpdatePeriodDialog() {
+  updatePeriodValue.value = 'last'
+  updatePeriodDialogVisible.value = true
+}
+
+function getUpdatePeriodPayload() {
+  const opt = UPDATE_PERIOD_OPTIONS.find((o) => o.id === updatePeriodValue.value)
+  return opt ? opt.payload : { fromLastUpdate: true }
+}
+
+async function confirmUpdateAll() {
+  await handleUpdateAll(getUpdatePeriodPayload())
+  updatePeriodDialogVisible.value = false
+}
+
+function openChart(row) {
+  const href = router.resolve({ path: '/chart', query: { symbol: row.filename } }).href
+  const url = href.startsWith('http') ? href : `${window.location.origin}${href}`
+  window.open(url, '_blank')
+}
+
+function openEditDialog(row) {
+  editForm.symbol = row.filename || ''
+  editForm.name = (row.displayName ?? '').trim()
+  editForm.remark = (row.remark ?? '').trim()
+  editDialogVisible.value = true
+}
+
+function resetEditForm() {
+  editForm.symbol = ''
+  editForm.name = ''
+  editForm.remark = ''
+}
+
+async function handleEditSubmit() {
+  if (!editForm.symbol) return
+  savingRemark.value = true
+  appStore.setError('')
+  try {
+    await apiUpdateStockRemark(editForm.symbol, editForm.remark.trim(), editForm.name.trim())
+    ElMessage.success('已保存')
+    editDialogVisible.value = false
+    await stockStore.fetchList()
+  } catch (e) {
+    ElMessage.error('保存失败: ' + (e.message || ''))
+  } finally {
+    savingRemark.value = false
+  }
+}
+
+function onAddCodeInput(val) {
   const v = (val || '').trim().toUpperCase()
   if (/\.HK$/.test(v)) {
-    stockCode.value = v
+    addForm.code = v
       .replace(/[^\d.]/g, '')
       .replace(/(\d{5})\.HK.*/, '$1.HK')
       .slice(0, 10)
   } else {
-    stockCode.value = (val || '').replace(/\D/g, '').slice(0, 6)
+    addForm.code = (val || '').replace(/\D/g, '').slice(0, 6)
   }
+}
+
+function openAddDialog() {
+  addForm.code = ''
+  addForm.remark = ''
+  addDialogVisible.value = true
+}
+
+function resetAddForm() {
+  addForm.code = ''
+  addForm.remark = ''
 }
 
 function isStockCodeValid(code) {
@@ -105,163 +248,8 @@ function isStockCodeValid(code) {
   )
 }
 
-function renderPriceChart(data) {
-  if (!priceChartRef.value || !data) return
-  if (!priceChart) {
-    priceChart = echarts.init(priceChartRef.value)
-  }
-  const dates = data.dates || []
-  const open = data['开盘'] || []
-  const close = data['收盘'] || []
-  const high = data['最高'] || []
-  const low = data['最低'] || []
-
-  priceChart.setOption({
-    tooltip: {
-      trigger: 'axis',
-      backgroundColor: 'rgba(30,41,59,0.95)',
-      borderColor: '#334155',
-    },
-    legend: {
-      data: ['开盘', '收盘', '最高', '最低'],
-      textStyle: { color: '#94a3b8' },
-      top: 0,
-    },
-    grid: {
-      left: '3%',
-      right: '4%',
-      bottom: '3%',
-      top: '15%',
-      containLabel: true,
-    },
-    xAxis: {
-      type: 'category',
-      data: dates,
-      axisLine: { lineStyle: { color: '#334155' } },
-      axisLabel: { color: '#94a3b8' },
-    },
-    yAxis: {
-      type: 'value',
-      axisLine: { show: false },
-      splitLine: { lineStyle: { color: 'rgba(255,255,255,0.06)' } },
-      axisLabel: { color: '#94a3b8' },
-    },
-    series: [
-      {
-        name: '开盘',
-        type: 'line',
-        smooth: true,
-        data: open,
-        symbol: 'none',
-        lineStyle: { width: 2 },
-      },
-      {
-        name: '收盘',
-        type: 'line',
-        smooth: true,
-        data: close,
-        symbol: 'none',
-        lineStyle: { width: 2 },
-      },
-      {
-        name: '最高',
-        type: 'line',
-        smooth: true,
-        data: high,
-        symbol: 'none',
-        lineStyle: { width: 2 },
-      },
-      {
-        name: '最低',
-        type: 'line',
-        smooth: true,
-        data: low,
-        symbol: 'none',
-        lineStyle: { width: 2 },
-      },
-    ],
-    color: ['#00d9ff', '#00ff88', '#fbbf24', '#f87171'],
-  })
-}
-
-function renderVolumeChart(data) {
-  if (!volumeChartRef.value || !data) return
-  if (!volumeChart) {
-    volumeChart = echarts.init(volumeChartRef.value)
-  }
-  const dates = data.dates || []
-  const volume = data['成交量'] || []
-
-  volumeChart.setOption({
-    tooltip: {
-      trigger: 'axis',
-      backgroundColor: 'rgba(30,41,59,0.95)',
-      borderColor: '#334155',
-    },
-    grid: {
-      left: '3%',
-      right: '4%',
-      bottom: '3%',
-      top: '8%',
-      containLabel: true,
-    },
-    xAxis: {
-      type: 'category',
-      data: dates,
-      axisLine: { lineStyle: { color: '#334155' } },
-      axisLabel: { color: '#94a3b8' },
-    },
-    yAxis: {
-      type: 'value',
-      name: '成交量',
-      nameTextStyle: { color: '#94a3b8' },
-      axisLine: { show: false },
-      splitLine: { lineStyle: { color: 'rgba(255,255,255,0.06)' } },
-      axisLabel: { color: '#94a3b8' },
-    },
-    series: [
-      {
-        name: '成交量',
-        type: 'bar',
-        data: volume,
-        itemStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: '#00d9ff' },
-            { offset: 1, color: 'rgba(0,217,255,0.3)' },
-          ]),
-        },
-      },
-    ],
-  })
-}
-
-async function onStockChange() {
-  const value = selectedValue.value
-  appStore.setError('')
-  if (!value) {
-    stockStore.clearChartData()
-    priceChart?.clear()
-    volumeChart?.clear()
-    return
-  }
-  appStore.setLoading(true)
-  try {
-    const data = await stockStore.fetchData(value)
-    if (data?.dates) {
-      renderPriceChart(data)
-      renderVolumeChart(data)
-    } else {
-      appStore.setError('数据格式异常')
-    }
-  } catch (e) {
-    appStore.setError(e.message)
-  } finally {
-    appStore.setLoading(false)
-  }
-}
-
-async function handleAddStock() {
-  const code = stockCode.value.trim()
+async function handleAddStockSubmit() {
+  const code = addForm.code.trim()
   if (!isStockCodeValid(code)) {
     ElMessage.warning('请输入 A股6位 或 港股5位/xxxxx.HK')
     return
@@ -271,8 +259,16 @@ async function handleAddStock() {
   try {
     const data = await stockStore.addStock(code)
     if (data?.ok) {
+      const remark = (addForm.remark || '').trim()
+      if (remark) {
+        try {
+          await apiUpdateStockRemark(code, remark)
+        } catch (_) {
+          ElMessage.warning('已加入配置，但说明保存失败')
+        }
+      }
       ElMessage.success(data.message || '已加入配置')
-      stockCode.value = ''
+      addDialogVisible.value = false
       await stockStore.fetchList()
     } else {
       ElMessage.error(data?.message || '失败')
@@ -284,12 +280,12 @@ async function handleAddStock() {
   }
 }
 
-async function handleUpdateAll() {
+async function handleUpdateAll(options = { fromLastUpdate: true }) {
   updatingAll.value = true
   appStore.setError('')
   appStore.setLoading(true)
   try {
-    const data = await stockStore.updateAll()
+    const data = await stockStore.updateAll(options)
     if (data?.ok && data?.results) {
       const ok = data.results.filter((r) => r.ok).length
       const fail = data.results.filter((r) => !r.ok).length
@@ -306,20 +302,8 @@ async function handleUpdateAll() {
   }
 }
 
-function onResize() {
-  priceChart?.resize()
-  volumeChart?.resize()
-}
-
 onMounted(async () => {
   await stockStore.fetchList()
-  window.addEventListener('resize', onResize)
-})
-
-onUnmounted(() => {
-  window.removeEventListener('resize', onResize)
-  priceChart?.dispose()
-  volumeChart?.dispose()
 })
 </script>
 
@@ -343,18 +327,6 @@ h1 {
   color: #8892a0;
   margin-bottom: 8px;
 }
-.nav-row {
-  text-align: right;
-  margin-bottom: 16px;
-}
-.nav-row .link {
-  color: #00d9ff;
-  text-decoration: none;
-  font-size: 14px;
-}
-.nav-row .link:hover {
-  text-decoration: underline;
-}
 .toolbar {
   display: flex;
   align-items: center;
@@ -362,52 +334,23 @@ h1 {
   margin-bottom: 20px;
   flex-wrap: wrap;
 }
-.label {
-  color: var(--el-text-color-regular);
-  font-size: 14px;
+.list-card {
+  margin-bottom: 20px;
+}
+.list-card .el-empty {
+  padding: 24px;
+}
+.loading-wrap {
+  min-height: 2px;
+  margin-top: 16px;
 }
 .error-alert {
   margin-top: 16px;
 }
-.chart-wrap {
-  background: rgba(30, 41, 59, 0.6);
-  border-radius: 12px;
-  padding: 20px;
-  margin-bottom: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+.update-period-tip {
+  color: #606266;
+  margin: 0 0 16px;
+  font-size: 14px;
 }
-.chart-title {
-  font-size: 15px;
-  color: #94a3b8;
-  margin-bottom: 12px;
-}
-.chart {
-  width: 100%;
-  height: 380px;
-}
-.chart.volume {
-  height: 220px;
-}
-.loading,
-.error {
-  text-align: center;
-  padding: 40px;
-  color: #94a3b8;
-}
-.error {
-  color: #f87171;
-}
-.toolbar-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-  flex-wrap: wrap;
-}
-.nav-row .el-link {
-  margin-left: 12px;
-}
-.nav-row .el-link:first-child {
-  margin-left: 0;
-}
+ 
 </style>

@@ -218,10 +218,22 @@ def get_symbols_for_daily_update() -> list[dict[str, Any]]:
     return fetch_all("SELECT symbol, last_trade_date FROM stock_meta ORDER BY symbol")
 
 
+def get_last_trade_dates(symbols: list[str]) -> dict[str, Any]:
+    """返回 symbol -> last_trade_date 的映射，仅包含在 stock_meta 中存在的 symbol。"""
+    if not symbols:
+        return {}
+    placeholders = ", ".join(["%s"] * len(symbols))
+    rows = fetch_all(
+        "SELECT symbol, last_trade_date FROM stock_meta WHERE symbol IN (" + placeholders + ")",
+        tuple(symbols),
+    )
+    return {r["symbol"]: r.get("last_trade_date") for r in rows}
+
+
 def list_stocks_from_db() -> list[dict[str, Any]]:
-    """返回库中已有数据的股票列表，每项 { symbol, displayName, remark }。"""
+    """返回库中已有数据的股票列表，每项 { symbol, displayName, remark, lastUpdateDate }。"""
     sql = """
-    SELECT d.symbol, COALESCE(m.name, d.symbol) AS display_name, m.remark
+    SELECT d.symbol, COALESCE(m.name, d.symbol) AS display_name, m.remark, m.last_trade_date AS last_update_date
     FROM (SELECT DISTINCT symbol FROM stock_daily) d
     LEFT JOIN stock_meta m ON m.symbol = d.symbol
     ORDER BY d.symbol
@@ -232,6 +244,7 @@ def list_stocks_from_db() -> list[dict[str, Any]]:
             "symbol": r["symbol"],
             "displayName": (r.get("display_name") or r["symbol"]) or "",
             "remark": r.get("remark") or "",
+            "lastUpdateDate": str(r["last_update_date"]) if r.get("last_update_date") else None,
         }
         for r in rows
     ]
@@ -244,6 +257,29 @@ def update_stock_remark(symbol: str, remark: Optional[str] = None) -> bool:
         return False
     remark_val = (remark or "").strip() or None
     execute("UPDATE stock_meta SET remark = %s, updated_at = CURRENT_TIMESTAMP WHERE symbol = %s", (remark_val, symbol))
+    return True
+
+
+def update_stock_meta_info(symbol: str, name: Optional[str] = None, remark: Optional[str] = None) -> bool:
+    """更新股票名称与说明。仅更新传入的字段（name/remark 不在请求中则不更新）。空字符串表示清空。"""
+    symbol = (symbol or "").strip()
+    if not symbol:
+        return False
+    parts = []
+    params: list[Any] = []
+    if name is not None:
+        parts.append("name = %s")
+        params.append((name or "").strip() or None)
+    if remark is not None:
+        parts.append("remark = %s")
+        params.append((remark or "").strip() or None)
+    if not parts:
+        return True
+    params.append(symbol)
+    execute(
+        "UPDATE stock_meta SET " + ", ".join(parts) + ", updated_at = CURRENT_TIMESTAMP WHERE symbol = %s",
+        tuple(params),
+    )
     return True
 
 

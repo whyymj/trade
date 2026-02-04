@@ -44,6 +44,8 @@
 | POST | `/api/sync_all` | 全量同步：清空 DB 后按 config.stocks 拉取并写入数据库 |
 | PUT/PATCH | `/api/stock_remark` | 更新股票说明（body: { "symbol": "600519", "remark": "说明" }） |
 | POST | `/api/remove_stock` | 从 config 移除股票并删除库中该股票数据（body: { "code": "600519" }） |
+| GET | `/api/analyze` | 综合分析（时域/频域/ARIMA/复杂度/技术指标）。Query: symbol, start, end（YYYY-MM-DD）。返回 { summary, report_md, charts } |
+| GET | `/api/analyze/export` | 同分析参数，返回 Markdown 文件附件（含 YAML 元数据、结构化摘要 JSON、完整报告），便于存档与 AI 解析 |
 
 ---
 

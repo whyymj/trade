@@ -33,8 +33,8 @@ export const useStockStore = defineStore('stock', () => {
     return apiAddStock(code)
   }
 
-  async function updateAll() {
-    return apiUpdateAll()
+  async function updateAll(options = { fromLastUpdate: true }) {
+    return apiUpdateAll(options)
   }
 
   return {

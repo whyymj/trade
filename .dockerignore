@@ -1,0 +1,39 @@
+# 虚拟环境与缓存
+.venv
+venv
+__pycache__
+*.py[cod]
+*.pyo
+.Python
+*.so
+
+# 前端（在镜像内重新构建）
+frontend/node_modules
+frontend/dist
+frontend/.git
+
+# 本地配置与敏感信息（容器内使用 config.docker.yaml + 环境变量）
+config.yaml
+
+# 输出与临时
+output
+*.log
+data/mysql.log
+
+# 版本控制与 IDE
+.git
+.gitignore
+.cursor
+*.md
+!README.md
+
+# 测试与文档
+.pytest_cache
+.coverage
+htmlcov
+docs
+
+# 其他
+.DS_Store
+*.egg-info
+.eggs

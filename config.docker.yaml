@@ -1,0 +1,7 @@
+# Docker 镜像内默认配置（不含敏感信息，MySQL 由环境变量 MYSQL_* 提供）
+start_date: ''
+end_date: ''
+adjust: qfq
+mysql: {}
+stocks: []
+output_dir: data

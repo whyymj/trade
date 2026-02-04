@@ -18,17 +18,26 @@
 """
 
 import json
+import shutil
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from analysis.cleanup_temp import ANALYSIS_TEMP_PREFIX, cleanup_analysis_temp_dirs
+
 import pandas as pd
+
+# 非交互后端，避免在 Flask 等非主线程中报错（如 MacOS backend）
+import matplotlib
+matplotlib.use("agg")
 
 # 导入各分析模块
 from analysis.time_domain import analyze_time_domain
 from analysis.frequency_domain import analyze_frequency_domain, calc_returns_from_prices
 from analysis.arima_model import build_arima_model
 from analysis.complexity import analyze_complexity
+from analysis.technical import analyze_technical
 
 
 def load_stock_data(csv_path: str | Path) -> tuple[pd.DataFrame, pd.Series, str]:
@@ -72,6 +81,25 @@ def load_stock_data(csv_path: str | Path) -> tuple[pd.DataFrame, pd.Series, str]
         stock_name = f"{df['股票代码'].iloc[0]}_{stock_name}"
 
     return df, prices, stock_name
+
+
+def _forecast_to_list(forecast: Any) -> list[dict]:
+    """将 ARIMA 的 forecast（DataFrame 或 None）转为列表，避免对 DataFrame 做布尔判断。"""
+    if forecast is None:
+        return []
+    if isinstance(forecast, pd.DataFrame) and forecast.empty:
+        return []
+    if not isinstance(forecast, pd.DataFrame):
+        return []
+    return [
+        {
+            "date": str(idx),
+            "predicted": float(row["预测值"]),
+            "lower": float(row["下界"]),
+            "upper": float(row["上界"]),
+        }
+        for idx, row in forecast.iterrows()
+    ]
 
 
 def format_number(value: Any, decimals: int = 4) -> str:
@@ -194,9 +222,14 @@ def generate_frequency_domain_section(result: dict) -> str:
 
 
 def generate_arima_section(result: dict) -> str:
-    """生成ARIMA预测部分。"""
+    """生成ARIMA预测部分。若因数据不足等原因未执行，则仅输出说明。"""
     sections = []
     sections.append("\n## 4. ARIMA预测模型\n")
+
+    if result.get("skip_reason"):
+        sections.append(f"**未执行**: {result['skip_reason']}")
+        sections.append("\n请扩大时间范围（如选择至少约 1.5 个月以上交易日数据）后重新分析。")
+        return "\n".join(sections)
 
     order = result.get("order", (0, 0, 0))
     metrics = result.get("metrics", {})
@@ -255,9 +288,14 @@ def generate_arima_section(result: dict) -> str:
 
 
 def generate_complexity_section(result: dict) -> str:
-    """生成复杂度分析部分。"""
+    """生成复杂度分析部分。若因数据不足等原因未执行，则仅输出说明。"""
     sections = []
     sections.append("\n## 5. 非线性与复杂度分析\n")
+
+    if result.get("skip_reason"):
+        sections.append(f"**未执行**: {result['skip_reason']}")
+        sections.append("\n请扩大时间范围（如选择至少约 3 个月以上交易日数据）后重新分析。")
+        return "\n".join(sections)
 
     # 赫斯特指数
     sections.append("### 赫斯特指数 (Hurst Exponent)\n")
@@ -374,6 +412,27 @@ def generate_summary_section(
     return "\n".join(sections)
 
 
+def generate_technical_section(tech_result: dict) -> str:
+    """生成技术指标与风险部分。"""
+    sections = []
+    sections.append("\n## 技术指标与风险\n")
+    last = tech_result.get("last") or {}
+    sections.append("| 指标 | 当前值 | 说明 |")
+    sections.append("|------|--------|------|")
+    rsi = last.get("rsi")
+    sections.append(f"| RSI(14) | {format_number(rsi)} | >70 超买，<30 超卖 |")
+    sections.append(f"| MACD | {format_number(last.get('macd'))} | 快慢线差 |")
+    sections.append(f"| MACD柱 | {format_number(last.get('macd_hist'))} | 柱由负转正可视为金叉 |")
+    sections.append(f"| 布林上/中/下 | {format_number(last.get('bb_upper'))} / {format_number(last.get('bb_mid'))} / {format_number(last.get('bb_lower'))} | 价格触及上轨偏超买、下轨偏超卖 |")
+    vol = last.get("volatility_annual")
+    sections.append(f"| 年化波动率(20日) | {format_number(vol, 4)} | 收益率滚动标准差年化 |")
+    var = tech_result.get("var_95")
+    cvar = tech_result.get("cvar_95")
+    sections.append(f"| VaR(95%) | {format_number(var, 4)} | 日收益 95% 置信下界（负为亏损） |")
+    sections.append(f"| CVaR(95%) | {format_number(cvar, 4)} | 超过 VaR 时的平均亏损 |")
+    return "\n".join(sections)
+
+
 def generate_json_summary(
     stock_name: str,
     prices: pd.Series,
@@ -381,9 +440,10 @@ def generate_json_summary(
     freq_result: dict,
     arima_result: dict,
     complexity_result: dict,
+    tech_result: dict | None = None,
 ) -> dict:
     """生成JSON格式的结构化摘要，便于程序化处理。"""
-    return {
+    out = {
         "stock_info": {
             "name": stock_name,
             "data_points": len(prices),
@@ -411,15 +471,7 @@ def generate_json_summary(
             "aic": arima_result.get("aic"),
             "rmse": arima_result.get("metrics", {}).get("rmse"),
             "r_squared": arima_result.get("metrics", {}).get("r_squared"),
-            "forecast": [
-                {
-                    "date": str(idx),
-                    "predicted": float(row["预测值"]),
-                    "lower": float(row["下界"]),
-                    "upper": float(row["上界"]),
-                }
-                for idx, row in arima_result.get("forecast", pd.DataFrame()).iterrows()
-            ],
+            "forecast": _forecast_to_list(arima_result.get("forecast")),
         },
         "complexity": {
             "hurst_exponent": complexity_result.get("hurst_exponent"),
@@ -430,6 +482,316 @@ def generate_json_summary(
             "is_normal_distribution": bool(complexity_result.get("jarque_bera_pvalue", 0) >= 0.05),
         },
     }
+    if tech_result:
+        out["technical"] = {
+            "rsi": tech_result.get("last", {}).get("rsi"),
+            "macd": tech_result.get("last", {}).get("macd"),
+            "macd_hist": tech_result.get("last", {}).get("macd_hist"),
+            "bb_upper": tech_result.get("last", {}).get("bb_upper"),
+            "bb_mid": tech_result.get("last", {}).get("bb_mid"),
+            "bb_lower": tech_result.get("last", {}).get("bb_lower"),
+            "volatility_annual": tech_result.get("last", {}).get("volatility_annual"),
+            "var_95": tech_result.get("var_95"),
+            "cvar_95": tech_result.get("cvar_95"),
+        }
+    return out
+
+
+def _build_charts_data(
+    time_result: dict,
+    freq_result: dict,
+    complexity_result: dict,
+    prices: pd.Series,
+    tech_result: dict | None = None,
+) -> dict[str, Any]:
+    """从各分析结果提取可序列化的绘图数据，供前端 ECharts 渲染。"""
+    import numpy as np
+    charts: dict[str, Any] = {}
+
+    # 频域：功率谱
+    freq = freq_result.get("frequencies")
+    psd = freq_result.get("psd")
+    if freq is not None and psd is not None:
+        try:
+            charts["frequency_domain"] = {
+                "frequencies": np.asarray(freq).tolist(),
+                "psd": np.asarray(psd).tolist(),
+            }
+        except Exception:
+            pass
+
+    # 时域：STL 分解
+    stl = time_result.get("stl_decomposition")
+    if stl is not None and isinstance(stl, dict):
+        try:
+            trend = stl.get("trend")
+            seasonal = stl.get("seasonal")
+            resid = stl.get("resid")
+            if trend is not None and hasattr(trend, "index"):
+                dates = [str(t) for t in trend.index]
+                charts["time_domain"] = charts.get("time_domain", {})
+                charts["time_domain"]["stl"] = {
+                    "dates": dates,
+                    "trend": np.asarray(trend).tolist(),
+                    "seasonal": np.asarray(seasonal).tolist() if seasonal is not None else [],
+                    "resid": np.asarray(resid).tolist() if resid is not None else [],
+                }
+        except Exception:
+            pass
+
+    # 时域：ACF（自相关）
+    try:
+        from statsmodels.tsa.stattools import acf
+        p = prices.dropna()
+        nlags = min(40, len(p) - 1)
+        if nlags > 0:
+            acf_vals = acf(p, nlags=nlags)
+            charts["time_domain"] = charts.get("time_domain", {})
+            charts["time_domain"]["acf"] = {
+                "lags": list(range(len(acf_vals))),
+                "values": np.asarray(acf_vals).tolist(),
+            }
+    except Exception:
+        pass
+
+    # 复杂度：赫斯特 R/S 曲线
+    hd = complexity_result.get("hurst_details") or {}
+    if hd.get("log_lags") is not None and hd.get("log_rs") is not None:
+        try:
+            log_lags = np.asarray(hd["log_lags"]).tolist()
+            log_rs = np.asarray(hd["log_rs"]).tolist()
+            coeffs = hd.get("coefficients")
+            if coeffs is not None:
+                coeffs = np.asarray(coeffs).tolist()
+            charts["complexity"] = {
+                "hurst": {
+                    "log_lags": log_lags,
+                    "log_rs": log_rs,
+                    "hurst": complexity_result.get("hurst_exponent"),
+                    "coefficients": coeffs,
+                }
+            }
+        except Exception:
+            pass
+
+    # 技术指标与风险（NaN 转为 None 以便 JSON 序列化）
+    def _safe_list(s, default=None):
+        if s is None:
+            return []
+        a = np.asarray(s)
+        out = a.tolist()
+        return [None if isinstance(x, float) and np.isnan(x) else x for x in out]
+
+    if tech_result:
+        try:
+            dates = [str(t) for t in prices.index]
+            rsi = tech_result.get("rsi")
+            macd = tech_result.get("macd") or {}
+            bb = tech_result.get("bollinger") or {}
+            vol = tech_result.get("rolling_volatility")
+            charts["technical"] = {
+                "dates": dates,
+                "rsi": _safe_list(rsi),
+                "macd": _safe_list(macd.get("macd")),
+                "macd_signal": _safe_list(macd.get("signal")),
+                "macd_hist": _safe_list(macd.get("hist")),
+                "bb_upper": _safe_list(bb.get("upper")),
+                "bb_mid": _safe_list(bb.get("mid")),
+                "bb_lower": _safe_list(bb.get("lower")),
+                "rolling_volatility": _safe_list(vol),
+            }
+        except Exception:
+            pass
+
+    return charts
+
+
+def _prepare_df_from_raw(df_raw: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
+    """
+    将 akshare/API 返回的日线 DataFrame（含「日期」「收盘」列）转为 (df, prices)。
+    df 索引为日期，prices 为收盘价序列。
+    """
+    df = df_raw.copy()
+    date_col = "日期" if "日期" in df.columns else df.columns[0]
+    price_col = "收盘" if "收盘" in df.columns else None
+    for c in ("close", "Close", "收盘价"):
+        if c in df.columns:
+            price_col = c
+            break
+    if price_col is None:
+        raise ValueError("DataFrame 中未找到收盘价列")
+    df[date_col] = pd.to_datetime(df[date_col])
+    df = df.set_index(date_col).sort_index()
+    prices = df[price_col].astype(float)
+    return df, prices
+
+
+def run_analysis_from_dataframe(
+    df_raw: pd.DataFrame,
+    stock_name: str,
+    output_dir: str | Path | None = None,
+    forecast_days: int = 5,
+    show_plots: bool = False,
+) -> dict[str, Any]:
+    """
+    基于内存中的日线 DataFrame 运行完整分析，返回 JSON 摘要与 Markdown 报告文本。
+    供 API 等调用，无需 CSV 文件。
+
+    Args:
+        df_raw: 日线 DataFrame，需含「日期」「收盘」列（如 akshare / fetch_hist 返回格式）
+        stock_name: 股票标识（如代码或名称）
+        output_dir: 图表保存目录；为 None 时使用临时目录（不持久化）
+        forecast_days: ARIMA 预测天数
+        show_plots: 是否显示图表
+
+    Returns:
+        dict: 含 summary（JSON 摘要）、report_md（Markdown 报告全文）
+    """
+    df, prices = _prepare_df_from_raw(df_raw)
+    returns = calc_returns_from_prices(prices)
+    use_temp = output_dir is None
+    out = Path(tempfile.mkdtemp(prefix=ANALYSIS_TEMP_PREFIX)) if use_temp else Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+
+    time_dir = out / "time_domain"
+    time_result = analyze_time_domain(df, save_dir=time_dir, show_plots=show_plots)
+
+    freq_dir = out / "frequency_domain"
+    freq_result = analyze_frequency_domain(returns, save_dir=freq_dir, show_plots=show_plots)
+
+    arima_dir = out / "arima"
+    try:
+        arima_result = build_arima_model(
+            prices,
+            forecast_days=forecast_days,
+            save_dir=arima_dir,
+            show_plots=show_plots,
+            verbose=False,
+        )
+    except (ValueError, TypeError) as e:
+        arima_result = {
+            "order": None,
+            "forecast": None,
+            "metrics": {},
+            "adf_test": {},
+            "aic": None,
+            "skip_reason": str(e),
+        }
+
+    complexity_dir = out / "complexity"
+    try:
+        complexity_result = analyze_complexity(
+            returns, save_dir=complexity_dir, show_plots=show_plots
+        )
+    except (ValueError, TypeError) as e:
+        complexity_result = {"skip_reason": str(e)}
+
+    tech_result = analyze_technical(prices, returns)
+
+    json_summary = generate_json_summary(
+        stock_name, prices, time_result, freq_result, arima_result, complexity_result, tech_result
+    )
+
+    report_parts = []
+    report_parts.append(f"# {stock_name} 综合分析报告\n")
+    report_parts.append(f"*生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*\n")
+    report_parts.append("*数据范围: 选定时间区间*\n")
+    report_parts.append(generate_data_overview(df, prices, stock_name))
+    report_parts.append(generate_time_domain_section(time_result))
+    report_parts.append(generate_frequency_domain_section(freq_result))
+    report_parts.append(generate_arima_section(arima_result))
+    report_parts.append(generate_complexity_section(complexity_result))
+    report_parts.append(generate_technical_section(tech_result))
+    report_parts.append(
+        generate_summary_section(
+            time_result, freq_result, arima_result, complexity_result
+        )
+    )
+    report_md = "\n".join(report_parts)
+
+    charts = _build_charts_data(time_result, freq_result, complexity_result, prices, tech_result)
+
+    if use_temp and out.exists():
+        try:
+            shutil.rmtree(out, ignore_errors=True)
+        except Exception:
+            pass
+
+    return {
+        "summary": json_summary,
+        "report_md": report_md,
+        "charts": charts,
+    }
+
+
+def build_export_document(
+    result: dict[str, Any],
+    export_time: str | None = None,
+) -> str:
+    """
+    将分析结果整理为可下载的 Markdown 文档，便于存档与 AI 解析。
+
+    文档结构：
+    - YAML front matter：标题、标的、日期范围、导出时间
+    - 结构化摘要：JSON 格式的 summary，供程序/AI 解析
+    - 完整报告正文：report_md 全文
+
+    Args:
+        result: run_analysis_from_dataframe 的返回值（含 summary、report_md）
+        export_time: 导出时间字符串，默认当前时间
+
+    Returns:
+        完整 Markdown 字符串，UTF-8
+    """
+    if export_time is None:
+        export_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    summary = result.get("summary") or {}
+    report_md = result.get("report_md") or ""
+    symbol = summary.get("stock_info", {}).get("name", "")
+    start_date = summary.get("stock_info", {}).get("start_date", "")
+    end_date = summary.get("stock_info", {}).get("end_date", "")
+
+    # 确保 summary 可 JSON 序列化（去除 NaN 等）
+    def _json_safe(obj):
+        if obj is None:
+            return None
+        if isinstance(obj, float):
+            if obj != obj:  # NaN
+                return None
+            return obj
+        if isinstance(obj, dict):
+            return {k: _json_safe(v) for k, v in obj.items()}
+        if isinstance(obj, (list, tuple)):
+            return [_json_safe(x) for x in obj]
+        return obj
+
+    summary_clean = _json_safe(summary)
+    summary_json = json.dumps(summary_clean, ensure_ascii=False, indent=2)
+
+    lines = [
+        "---",
+        "title: \"股票综合分析报告\"",
+        f"symbol: \"{symbol}\"",
+        f"start_date: \"{start_date}\"",
+        f"end_date: \"{end_date}\"",
+        f"export_time: \"{export_time}\"",
+        "---",
+        "",
+        "# 结构化摘要（供程序/AI解析）",
+        "",
+        "以下为 JSON 格式的关键指标，便于程序或大模型解析。",
+        "",
+        "```json",
+        summary_json,
+        "```",
+        "",
+        "---",
+        "",
+        "# 完整报告正文",
+        "",
+        report_md,
+    ]
+    return "\n".join(lines)
 
 
 def generate_full_report(
@@ -578,12 +940,23 @@ def generate_full_report(
 if __name__ == "__main__":
     import sys
 
+    # 任意位置出现 --cleanup/-c 均只做清理并退出
+    if any(a in ("--cleanup", "-c") for a in sys.argv[1:]):
+        n = cleanup_analysis_temp_dirs()
+        print(f"已清理 {n} 个分析临时目录")
+        sys.exit(0)
+
     if len(sys.argv) < 2:
         print("用法: python -m analysis.full_report <csv_path> [output_dir] [forecast_days]")
+        print("      python -m analysis.full_report --cleanup   # 清理遗留临时目录")
         print("示例: python -m analysis.full_report data/xxx.csv output/report/ 5")
         sys.exit(1)
 
     csv_path = sys.argv[1]
+    if csv_path.startswith("-"):
+        print("错误: 第一个参数不能为选项。请提供 CSV 文件路径。")
+        print("若需清理临时目录，请使用: python -m analysis.full_report --cleanup")
+        sys.exit(1)
 
     # 智能解析参数
     output_dir = None

@@ -12,13 +12,39 @@
 
 接口与功能说明见项目根目录 docs/API.md。
 """
+# pyright: reportMissingImports=false, reportMissingModuleSource=false
+
+import os
 
 from datetime import datetime, timedelta
 from pathlib import Path
 
+# 请求东方财富等数据源时直连，不走代理，避免 ProxyError
+_no_proxy = os.environ.get("NO_PROXY") or os.environ.get("no_proxy") or ""
+if _no_proxy:
+    _no_proxy = _no_proxy.rstrip(",") + ","
+_no_proxy += "eastmoney.com,.eastmoney.com,push2his.eastmoney.com,quote.eastmoney.com"
+os.environ["NO_PROXY"] = os.environ["no_proxy"] = _no_proxy
+
+import time
+
 import akshare as ak
 import pandas as pd
 import yaml
+
+# 可重试的异常（连接被远端关闭、超时等）
+def _is_retryable_connection_error(e: BaseException) -> bool:
+    def check(ex: BaseException | None) -> bool:
+        if ex is None:
+            return False
+        msg = str(ex).lower()
+        if "connection" in msg or "remote" in msg or "disconnected" in msg or "timeout" in msg or "aborted" in msg:
+            return True
+        t = type(ex).__name__
+        if t in ("ConnectionError", "RemoteDisconnected", "ProtocolError", "TimeoutError", "ConnectTimeout", "ReadTimeout", "ChunkedEncodingError"):
+            return True
+        return check(getattr(ex, "__cause__", None))
+    return check(e)
 
 # 项目根目录（server 包上一级）
 ROOT = Path(__file__).resolve().parent.parent
@@ -74,59 +100,120 @@ def is_valid_stock_code(symbol: str) -> bool:
     return is_a_share_stock(symbol) or is_hk_stock(symbol)
 
 
+def _get_ashare_name_from_individual_info(symbol: str) -> str | None:
+    """从 stock_individual_info_em 解析股票简称，兼容不同列名。"""
+    try:
+        df = ak.stock_individual_info_em(symbol=symbol)
+        if df is None or df.empty or len(df.columns) < 2:
+            return None
+        key_col, val_col = df.columns[0], df.columns[1]
+        for _, row in df.iterrows():
+            key = str(row.get(key_col, "")).strip()
+            if key == "股票简称" or "简称" in key:
+                val = str(row.get(val_col, "")).strip()
+                if val:
+                    return val
+        return None
+    except Exception:
+        return None
+
+
+def _get_ashare_name_from_code_name(symbol: str) -> str | None:
+    """从 A 股代码-名称全量表中按代码查名称（stock_info_a_code_name 或 stock_zh_a_spot_em）。"""
+    for func_name in ("stock_info_a_code_name", "stock_zh_a_spot_em"):
+        try:
+            func = getattr(ak, func_name, None)
+            if func is None:
+                continue
+            df = func() if callable(func) else None
+            if df is None or df.empty:
+                continue
+            code_col = "code" if "code" in df.columns else ("代码" if "代码" in df.columns else None)
+            name_col = "name" if "name" in df.columns else ("名称" if "名称" in df.columns else None)
+            if not code_col or not name_col:
+                continue
+            row = df[df[code_col].astype(str).str.strip() == symbol]
+            if not row.empty:
+                return str(row[name_col].iloc[0]).strip()
+        except Exception:
+            continue
+    return None
+
+
 def get_stock_name(symbol: str) -> str:
-    """根据股票代码获取股票名称（akshare）。A 股用 individual_info，港股用 spot 列表匹配。"""
+    """根据股票代码获取股票名称（akshare）。A 股先 individual_info，失败则 code_name 表；港股用 spot 列表。"""
     symbol = (symbol or "").strip()
     if is_hk_stock(symbol):
         hk_code = symbol.replace(".HK", "").strip()
         try:
             df = ak.stock_hk_spot_em()
-            if df is not None and not df.empty and "代码" in df.columns and "名称" in df.columns:
-                row = df[df["代码"].astype(str).str.strip() == hk_code]
-                if not row.empty:
-                    return str(row["名称"].iloc[0]).strip()
+            if df is not None and not df.empty:
+                code_col = "代码" if "代码" in df.columns else "code"
+                name_col = "名称" if "名称" in df.columns else "name"
+                if code_col in df.columns and name_col in df.columns:
+                    row = df[df[code_col].astype(str).str.strip() == hk_code]
+                    if not row.empty:
+                        return str(row[name_col].iloc[0]).strip()
         except Exception:
             pass
         return symbol
-    try:
-        df = ak.stock_individual_info_em(symbol=symbol)
-        if df is None or df.empty:
-            return symbol
-        cols = df.columns.tolist()
-        if len(cols) >= 2:
-            key_col, val_col = cols[0], cols[1]
-            row = df[df[key_col].astype(str).str.strip() == "股票简称"]
-            if not row.empty:
-                return str(row[val_col].iloc[0]).strip()
-        return symbol
-    except Exception:
-        return symbol
+    # A 股：先 individual_info，再备用 code_name 全表
+    name = _get_ashare_name_from_individual_info(symbol)
+    if name:
+        return name
+    name = _get_ashare_name_from_code_name(symbol)
+    return name if name else symbol
 
 
-def fetch_hist_remote(symbol: str, start_date: str, end_date: str, adjust: str = "qfq") -> pd.DataFrame | None:
-    """强制从 akshare 拉取单只股票日线，不读本地。A 股用 stock_zh_a_hist，港股用 stock_hk_hist。"""
+def fetch_hist_remote(symbol: str, start_date: str, end_date: str, adjust: str = "qfq") -> tuple[pd.DataFrame | None, str | None]:
+    """
+    强制从 akshare 拉取单只股票日线，不读本地。A 股用 stock_zh_a_hist，港股用 stock_hk_hist。
+    连接失败时自动重试最多 5 次（退避 2s/4s/6s/8s）。返回 (df, None) 成功；(None, error_message) 失败。
+    """
     symbol = (symbol or "").strip()
     print(f"fetch_hist_remote: {symbol}, {start_date}, {end_date}, {adjust}")
-    try:
-        if is_a_share_stock(symbol):
-            return ak.stock_zh_a_hist(
-                symbol=symbol,
-                start_date=start_date,
-                end_date=end_date,
-                adjust=adjust,
-            )
-        if is_hk_stock(symbol):
-            hk_symbol = symbol.replace(".HK", "").strip()
-            return ak.stock_hk_hist(
-                symbol=hk_symbol,
-                period="daily",
-                start_date=start_date,
-                end_date=end_date,
-                adjust=adjust or "",
-            )
-        return None
-    except Exception:
-        return None
+    max_attempts = 5
+    last_error: BaseException | None = None
+
+    for attempt in range(max_attempts):
+        try:
+            if is_a_share_stock(symbol):
+                kwargs = {
+                    "symbol": symbol,
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "adjust": adjust,
+                }
+                try:
+                    df = ak.stock_zh_a_hist(**kwargs)
+                except TypeError:
+                    kwargs["period"] = "daily"
+                    df = ak.stock_zh_a_hist(**kwargs)
+                return (df, None)
+            if is_hk_stock(symbol):
+                hk_symbol = symbol.replace(".HK", "").strip()
+                df = ak.stock_hk_hist(
+                    symbol=hk_symbol,
+                    period="daily",
+                    start_date=start_date,
+                    end_date=end_date,
+                    adjust=adjust or "",
+                )
+                return (df, None)
+            return (None, "不支持的股票代码格式")
+        except Exception as e:
+            last_error = e
+            err_msg = f"{type(e).__name__}: {e}"
+            if _is_retryable_connection_error(e) and attempt < max_attempts - 1:
+                wait = 2.0 * (attempt + 1)
+                print(f"fetch_hist_remote 连接异常，{wait}s 后重试 ({attempt + 1}/{max_attempts}): {err_msg}")
+                time.sleep(wait)
+            else:
+                print(f"fetch_hist_remote error: {err_msg}")
+                return (None, err_msg)
+
+    err_msg = f"{type(last_error).__name__}: {last_error}" if last_error else "拉取失败"
+    return (None, err_msg)
 
 
 def _market(symbol: str) -> str:
@@ -156,7 +243,7 @@ def fetch_hist(symbol: str, start_date: str, end_date: str, adjust: str = "qfq")
     df = stock_repo.get_stock_daily_df(symbol, start_date, end_date)
     if df is not None and not df.empty:
         return df
-    df = fetch_hist_remote(symbol, start_date, end_date, adjust)
+    df, _ = fetch_hist_remote(symbol, start_date, end_date, adjust)
     if df is not None and not df.empty:
         save_stock_db(symbol, df)
     return df
@@ -198,6 +285,10 @@ def get_date_range_from_config() -> tuple[str, str, str]:
     return start_date, end_date, adjust
 
 
+# 批量拉取时每只股票之间的间隔（秒），避免请求过快被数据源断开
+_BATCH_FETCH_DELAY = 0.8
+
+
 def update_all_stocks() -> list[dict]:
     """
     按 config 中 stocks 列表，逐个从网络拉取并写入数据库。
@@ -207,10 +298,12 @@ def update_all_stocks() -> list[dict]:
     stocks = [str(s).strip() for s in (cfg.get("stocks") or []) if str(s).strip()]
     start_date, end_date, adjust = get_date_range_from_config()
     result = []
-    for symbol in stocks:
-        df = fetch_hist_remote(symbol, start_date, end_date, adjust)
+    for i, symbol in enumerate(stocks):
+        if i > 0:
+            time.sleep(_BATCH_FETCH_DELAY)
+        df, err = fetch_hist_remote(symbol, start_date, end_date, adjust)
         if df is None or df.empty:
-            result.append({"symbol": symbol, "ok": False, "message": "拉取失败或无数据"})
+            result.append({"symbol": symbol, "ok": False, "message": err or "拉取失败或无数据"})
             continue
         try:
             n = save_stock_db(symbol, df)
@@ -220,42 +313,75 @@ def update_all_stocks() -> list[dict]:
     return result
 
 
-def update_daily_stocks() -> list[dict]:
+def update_daily_stocks(months: int | None = None, years: int | None = None) -> list[dict]:
     """
-    每日增量更新：按 config.stocks 对每只股票只拉取「尚未入库」的交易日到今天的数据。
-    若该股尚无 last_trade_date 则按 config 的日期范围全量拉取一次。
+    一键更新：按 config.stocks 对每只股票拉取「最近 N 月/年」到今天的日线并写入数据库（按日期 upsert 合并）。
+    months 优先于 years；均未传时默认 1 个月。
     返回 [{ "symbol": str, "ok": bool, "message": str }, ...]
     """
-    from datetime import timedelta
+    today = datetime.now().date()
+    if months is not None and int(months) > 0:
+        days = max(1, min(int(months) * 31, 365 * 20))
+    else:
+        y = 5 if years is None else max(1, min(20, int(years)))
+        days = y * 365
+    cfg = load_config()
+    symbols = [str(s).strip() for s in (cfg.get("stocks") or []) if str(s).strip()]
+    if not symbols:
+        return []
+    start_date = (today - timedelta(days=days)).strftime("%Y%m%d")
+    end_date = today.strftime("%Y%m%d")
+    _, _, adjust = get_date_range_from_config()
+    result = []
+    for i, symbol in enumerate(symbols):
+        if i > 0:
+            time.sleep(_BATCH_FETCH_DELAY)
+        df, err = fetch_hist_remote(symbol, start_date, end_date, adjust)
+        if df is None or df.empty:
+            result.append({"symbol": symbol, "ok": False, "message": err or "拉取失败或无数据"})
+            continue
+        try:
+            n = save_stock_db(symbol, df)
+            result.append({"symbol": symbol, "ok": True, "message": f"已更新 {n} 条"})
+        except Exception as e:
+            result.append({"symbol": symbol, "ok": False, "message": str(e)})
+    return result
 
+
+def update_daily_stocks_from_last() -> list[dict]:
+    """
+    按「最后更新日期至今」增量更新：对每只股票从 last_trade_date 的下一日拉到今天并写入。
+    若某只股票无 last_trade_date，则按近 1 个月拉取。
+    返回 [{ "symbol": str, "ok": bool, "message": str }, ...]
+    """
     from data import stock_repo
 
     cfg = load_config()
     symbols = [str(s).strip() for s in (cfg.get("stocks") or []) if str(s).strip()]
     if not symbols:
         return []
-    rows = stock_repo.get_symbols_for_daily_update()
-    last_by_symbol = {r["symbol"]: r.get("last_trade_date") for r in rows}
     today = datetime.now().date()
-    today_str = today.strftime("%Y%m%d")
+    last_dates = stock_repo.get_last_trade_dates(symbols)
     _, _, adjust = get_date_range_from_config()
+    fallback_days = 31
     result = []
-    for symbol in symbols:
-        last = last_by_symbol.get(symbol)
-        if last is not None:
-            # last 可能是 date 或 datetime（来自 MySQL）
-            start_d = last + timedelta(days=1) if hasattr(last, "__add__") else last
-            start_str = start_d.strftime("%Y%m%d") if hasattr(start_d, "strftime") else str(start_d).replace("-", "")[:8]
-            end_str = today_str
-            if start_str > end_str:
+    for i, symbol in enumerate(symbols):
+        if i > 0:
+            time.sleep(_BATCH_FETCH_DELAY)
+        last_d = last_dates.get(symbol)
+        if last_d:
+            d = last_d.date() if isinstance(last_d, datetime) else last_d
+            start_d = d + timedelta(days=1)
+            if start_d > today:
                 result.append({"symbol": symbol, "ok": True, "message": "已是最新"})
                 continue
+            start_date = start_d.strftime("%Y%m%d")
         else:
-            start_str, _, _ = get_date_range_from_config()
-            end_str = today_str
-        df = fetch_hist_remote(symbol, start_str, end_str, adjust)
+            start_date = (today - timedelta(days=fallback_days)).strftime("%Y%m%d")
+        end_date = today.strftime("%Y%m%d")
+        df, err = fetch_hist_remote(symbol, start_date, end_date, adjust)
         if df is None or df.empty:
-            result.append({"symbol": symbol, "ok": False, "message": "拉取失败或无新数据"})
+            result.append({"symbol": symbol, "ok": False, "message": err or "拉取失败或无数据"})
             continue
         try:
             n = save_stock_db(symbol, df)
@@ -297,9 +423,9 @@ def add_stock_and_fetch(symbol: str) -> dict:
     start_date = (today - timedelta(days=5 * 365)).strftime("%Y%m%d")
     end_date = today.strftime("%Y%m%d")
     _, _, adjust = get_date_range_from_config()
-    df = fetch_hist_remote(symbol, start_date, end_date, adjust)
+    df, err = fetch_hist_remote(symbol, start_date, end_date, adjust)
     if df is None or df.empty:
-        return {"ok": False, "message": "拉取数据失败或暂无数据"}
+        return {"ok": False, "message": err or "拉取数据失败或暂无数据"}
     try:
         n = save_stock_db(symbol, df)
     except Exception as e:
@@ -326,10 +452,12 @@ def sync_all_from_config(clear_first: bool = True) -> list[dict]:
     stocks = [str(s).strip() for s in (cfg.get("stocks") or []) if str(s).strip()]
     start_date, end_date, adjust = get_date_range_from_config()
     result = []
-    for symbol in stocks:
-        df = fetch_hist_remote(symbol, start_date, end_date, adjust)
+    for i, symbol in enumerate(stocks):
+        if i > 0:
+            time.sleep(_BATCH_FETCH_DELAY)
+        df, err = fetch_hist_remote(symbol, start_date, end_date, adjust)
         if df is None or df.empty:
-            result.append({"symbol": symbol, "ok": False, "message": "拉取失败或无数据"})
+            result.append({"symbol": symbol, "ok": False, "message": err or "拉取失败或无数据"})
             continue
         try:
             n = save_stock_db(symbol, df)

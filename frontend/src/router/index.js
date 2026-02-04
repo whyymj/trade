@@ -5,19 +5,13 @@ const routes = [
     path: '/',
     name: 'Home',
     component: () => import('@/views/StockChart.vue'),
-    meta: { title: '股票数据曲线' },
+    meta: { title: '股票列表' },
   },
   {
-    path: '/data-manage',
-    name: 'DataManage',
-    component: () => import('@/views/DataManage.vue'),
-    meta: { title: '数据管理' },
-  },
-  {
-    path: '/data-range',
-    name: 'DataRange',
-    component: () => import('@/views/DataRange.vue'),
-    meta: { title: '按日期范围查询' },
+    path: '/chart',
+    name: 'Chart',
+    component: () => import('@/views/ChartView.vue'),
+    meta: { title: '股票曲线' },
   },
 ]
 

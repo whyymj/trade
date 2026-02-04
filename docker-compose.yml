@@ -1,0 +1,43 @@
+services:
+  trade-app:
+    build: .
+    image: trade-app:latest
+    container_name: trade-app
+    ports:
+      - "5050:5050"
+    environment:
+      MYSQL_HOST: trade-mysql
+      MYSQL_PORT: "3306"
+      MYSQL_USER: root
+      MYSQL_PASSWORD: trade_secret
+      MYSQL_DATABASE: trade_cache
+      PORT: "5050"
+      FLASK_DEBUG: "0"
+    depends_on:
+      trade-mysql:
+        condition: service_healthy
+    # 可选：挂载宿主机 config.yaml 以持久化股票列表等
+    # volumes:
+    #   - ./config.yaml:/app/config.yaml
+
+  trade-mysql:
+    image: mysql:8.0
+    container_name: trade-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: trade_secret
+      MYSQL_DATABASE: trade_cache
+      MYSQL_CHARSET: utf8mb4
+    volumes:
+      - trade-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-ptrade_secret"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    # 仅容器内访问时可注释掉 ports
+    # ports:
+    #   - "3306:3306"
+
+volumes:
+  trade-mysql-data:

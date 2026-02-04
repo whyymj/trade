@@ -3,8 +3,7 @@
 数据 API 路由。挂载于 /api。
 接口说明见项目根目录 docs/API.md。
 """
-import pandas as pd
-from flask import Blueprint, jsonify, request, send_from_directory
+from flask import Blueprint, Response, jsonify, request, send_from_directory
 
 from server.utils import (
     add_stock_and_fetch,
@@ -18,15 +17,27 @@ from server.utils import (
     save_config,
     sync_all_from_config,
     update_daily_stocks,
+    update_daily_stocks_from_last,
 )
+
+try:
+    from analysis.full_report import build_export_document, run_analysis_from_dataframe
+except ImportError:
+    run_analysis_from_dataframe = None
+    build_export_document = None
 
 
 def _list_stocks():
-    """从数据库返回股票列表，每项含 filename（symbol）、displayName、remark。"""
+    """从数据库返回股票列表，每项含 filename（symbol）、displayName、remark、lastUpdateDate。"""
     from data import stock_repo
     items = stock_repo.list_stocks_from_db()
     return [
-        {"filename": x["symbol"], "displayName": x["displayName"], "remark": x.get("remark") or ""}
+        {
+            "filename": x["symbol"],
+            "displayName": x["displayName"],
+            "remark": x.get("remark") or "",
+            "lastUpdateDate": x.get("lastUpdateDate"),
+        }
         for x in items
     ]
 
@@ -48,8 +59,28 @@ def fetch_data(stock_code: str):
 
 @api_bp.route("/update_all", methods=["POST"])
 def update_all():
-    """一键更新全部：按库内最后交易日增量拉取到今天（只补缺失区间）。"""
-    result = update_daily_stocks()
+    """一键更新全部。Body: {"fromLastUpdate": true} 为最后更新日期至今；或 {"months": 1} / {"years": 3|5|10}。"""
+    body = request.get_json(silent=True) or {}
+    if body.get("fromLastUpdate"):
+        result = update_daily_stocks_from_last()
+        return jsonify({"ok": True, "results": result})
+    months = body.get("months")
+    years = body.get("years")
+    if months is not None:
+        try:
+            months = int(months)
+        except (TypeError, ValueError):
+            months = 1
+    elif years is not None:
+        try:
+            years = int(years)
+        except (TypeError, ValueError):
+            years = 5
+        months = None
+    else:
+        months = 1
+        years = None
+    result = update_daily_stocks(months=months, years=years)
     return jsonify({"ok": True, "results": result})
 
 
@@ -76,15 +107,27 @@ def list_files():
     return jsonify({"files": files})
 
 
+def _normalize_ymd(s: str) -> str:
+    """将 YYYY-MM-DD 或 YYYYMMDD 转为 YYYYMMDD。"""
+    if not s or not isinstance(s, str):
+        return ""
+    s = s.strip().replace("-", "")[:8]
+    return s if len(s) == 8 else ""
+
+
 @api_bp.route("/data", methods=["GET"])
 def get_data():
-    """按 file 参数（股票代码 symbol）从数据库读取日线并返回图表用 JSON。"""
+    """按 file 参数（股票代码 symbol）从数据库读取日线并返回图表用 JSON。可选 start、end（YYYY-MM-DD）指定时间范围。"""
     file_or_code = request.args.get("file", "").strip()
     if not file_or_code or ".." in file_or_code or "/" in file_or_code or "\\" in file_or_code:
         return jsonify({"error": "缺少或非法 file 参数"}), 400
-    # file 参数即股票代码（列表接口返回的 filename）
     symbol = file_or_code
-    start_date, end_date, _ = get_date_range_from_config()
+    start_arg = _normalize_ymd(request.args.get("start", ""))
+    end_arg = _normalize_ymd(request.args.get("end", ""))
+    if start_arg and end_arg:
+        start_date, end_date = start_arg, end_arg
+    else:
+        start_date, end_date, _ = get_date_range_from_config()
     df = fetch_hist(symbol, start_date, end_date)
     if df is None or df.empty:
         return jsonify({"error": "暂无数据或拉取失败"}), 404
@@ -148,17 +191,20 @@ def get_data_range():
 
 @api_bp.route("/stock_remark", methods=["PUT", "PATCH"])
 def update_stock_remark():
-    """更新股票说明（用户手动输入）。Body: { "symbol": "600519", "remark": "说明文字" }。"""
+    """更新股票名称与说明。Body: { "symbol": "600519", "name": "股票名称（可选）", "remark": "说明文字（可选）" }。"""
     from data import stock_repo as repo
 
     body = request.get_json(silent=True) or {}
     symbol = (body.get("symbol") or "").strip()
     if not symbol:
         return jsonify({"ok": False, "message": "缺少 symbol"}), 400
+    name = body.get("name")
+    if name is not None and not isinstance(name, str):
+        name = str(name)
     remark = body.get("remark")
     if remark is not None and not isinstance(remark, str):
         remark = str(remark)
-    repo.update_stock_remark(symbol, remark)
+    repo.update_stock_meta_info(symbol, name=name, remark=remark)
     return jsonify({"ok": True, "message": "已保存"})
 
 
@@ -171,3 +217,86 @@ def remove_stock():
         return jsonify({"ok": False, "message": "缺少 code 参数"}), 400
     out = remove_stock_from_config(code, delete_data=True)
     return jsonify(out)
+
+
+# ---------- 分析（analysis 模块） ----------
+
+
+@api_bp.route("/analyze", methods=["GET"])
+def analyze_stock():
+    """
+    对指定股票在时间范围内运行综合分析（时域、频域、ARIMA、复杂度）。
+    Query: symbol=600519, start=YYYY-MM-DD, end=YYYY-MM-DD
+    返回: { summary: {...}, report_md: "..." }
+    """
+    if run_analysis_from_dataframe is None:
+        return jsonify({"error": "分析模块不可用"}), 503
+    symbol = request.args.get("symbol", "").strip()
+    if not symbol or ".." in symbol or "/" in symbol or "\\" in symbol:
+        return jsonify({"error": "缺少或非法 symbol 参数"}), 400
+    start_arg = _normalize_ymd(request.args.get("start", ""))
+    end_arg = _normalize_ymd(request.args.get("end", ""))
+    if not start_arg or not end_arg:
+        return jsonify({"error": "请提供 start 与 end 参数（YYYY-MM-DD）"}), 400
+    df = fetch_hist(symbol, start_arg, end_arg)
+    if df is None or df.empty:
+        return jsonify({"error": "暂无数据或拉取失败"}), 404
+    try:
+        result = run_analysis_from_dataframe(
+            df,
+            stock_name=symbol,
+            output_dir=None,
+            forecast_days=5,
+            show_plots=False,
+        )
+    except Exception as e:
+        return jsonify({"error": f"分析执行失败: {e}"}), 500
+    return jsonify(result)
+
+
+@api_bp.route("/analyze/export", methods=["GET"])
+def export_analysis():
+    """
+    对指定股票在时间范围内运行综合分析，并将结果整理为可下载的 Markdown 文档。
+    Query: symbol=600519, start=YYYY-MM-DD, end=YYYY-MM-DD
+    返回: Markdown 文件附件，含 YAML 元数据、结构化摘要(JSON)、完整报告正文。便于存档与 AI 解析。
+    """
+    if run_analysis_from_dataframe is None or build_export_document is None:
+        return jsonify({"error": "分析/导出模块不可用"}), 503
+    symbol = request.args.get("symbol", "").strip()
+    if not symbol or ".." in symbol or "/" in symbol or "\\" in symbol:
+        return jsonify({"error": "缺少或非法 symbol 参数"}), 400
+    start_arg = _normalize_ymd(request.args.get("start", ""))
+    end_arg = _normalize_ymd(request.args.get("end", ""))
+    if not start_arg or not end_arg:
+        return jsonify({"error": "请提供 start 与 end 参数（YYYY-MM-DD）"}), 400
+    df = fetch_hist(symbol, start_arg, end_arg)
+    if df is None or df.empty:
+        return jsonify({"error": "暂无数据或拉取失败"}), 404
+    try:
+        result = run_analysis_from_dataframe(
+            df,
+            stock_name=symbol,
+            output_dir=None,
+            forecast_days=5,
+            show_plots=False,
+        )
+        doc = build_export_document(result)
+    except Exception as e:
+        return jsonify({"error": f"分析或导出失败: {e}"}), 500
+    from datetime import datetime
+    safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in symbol)
+    filename = f"{safe_name}_分析报告_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
+    return Response(
+        doc.encode("utf-8"),
+        mimetype="text/markdown; charset=utf-8",
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{__quote_filename(filename)}",
+        },
+    )
+
+
+def __quote_filename(name: str) -> str:
+    """对文件名做 RFC 5987 编码，用于 Content-Disposition。"""
+    from urllib.parse import quote
+    return quote(name, safe="")

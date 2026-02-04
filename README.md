@@ -27,31 +27,60 @@ trade/
 ├── analysis/            # 股票分析模块（时域、频域、ARIMA 等）
 └── frontend/            # 前端 Vue3 + Vite
     ├── src/
-    └── dist/            # 构建产物（npm run build）
+    └── dist/            # 构建产物（pnpm run build）
 ```
 
-## 启动方式
+## 开发方式
 
-### 开发
+### 本地开发（前后端分离）
 
 - **后端**（API，默认 5050）  
-  `python server.py`
-- **前端**（热更新，默认 5173，代理 /api 到 5050）  
-  `cd frontend && npm install && npm run dev`  
-  浏览器访问 http://localhost:5173
+  ```bash
+  python server.py
+  ```
+  或：`make backend`
 
-### 生产（前后端一体）
+- **前端**（热更新，默认 5173，Vite 将 `/api` 代理到 5050）  
+  ```bash
+  cd frontend && pnpm install && pnpm run dev
+  ```
+  或：`make frontend`  
+  浏览器访问：http://localhost:5173
 
-1. 构建前端：`cd frontend && npm run build`
-2. 启动后端：`python server.py`  
-  访问 http://localhost:5050，后端同时提供 API 与静态资源。
+需在两个终端分别启动后端与前端；一键安装依赖：`make install`（执行 `pip install -r requirements.txt` 与 `cd frontend && pnpm install`）。
 
-### 数据抓取与管理
+### 本地生产（前后端一体）
 
-仅通过前端页面操作：添加股票、一键更新、全量同步等，数据写入 MySQL（config.yaml 中配置 `mysql`）。
+1. 构建前端：`cd frontend && pnpm run build` 或 `make build`
+2. 启动后端：`python server.py` 或 `make backend`  
+   访问 http://localhost:5050，后端同时提供 API 与静态资源。
+
+### 配置与数据
+
+- **config.yaml**（项目根目录）：配置日期范围、复权方式、股票列表、MySQL 连接等；数据抓取与同步仅通过前端页面调用 API 完成。
+- **MySQL**：需先创建数据库（如 `CREATE DATABASE trade_cache DEFAULT CHARSET utf8mb4;`），在 `config.yaml` 的 `mysql` 中填写连接信息。启动后端时会自动创建业务表。
+
+---
+
+## 部署方案（Docker）
+
+使用 Docker Compose 一键启动应用与 MySQL：
+
+```bash
+docker compose up -d --build
+```
+
+- 应用访问：http://localhost:5050  
+- MySQL 连接由环境变量提供（见 `docker-compose.yml` 中 `MYSQL_HOST`、`MYSQL_PASSWORD` 等），无需在镜像内写入密码。  
+- 生产环境请修改 `docker-compose.yml` 中的 `MYSQL_PASSWORD` 与 MySQL 的 root 密码。  
+- 可选：挂载宿主机 `config.yaml` 以持久化股票列表等（在 `docker-compose.yml` 的 `trade-app` 的 `volumes` 中取消注释）。
+
+详细说明（架构、环境变量、挂载、仅跑应用等）：见 [docs/DOCKER.md](docs/DOCKER.md)。
+
+---
 
 ## 环境与依赖
 
 - **Python 3.10+**：见 `requirements.txt`（Flask、akshare、pandas、PyMySQL、PyYAML 等）。
-- **MySQL**：需先创建数据库（如 `trade_cache`），在 `config.yaml` 的 `mysql` 中配置连接。
-- **Node 18+**：前端开发与构建，`cd frontend && npm install`。
+- **MySQL**：需先创建数据库（如 `trade_cache`），在 `config.yaml` 的 `mysql` 中配置连接（Docker 部署时由环境变量覆盖）。
+- **Node 18+、pnpm**：前端开发与构建，`cd frontend && pnpm install`。

@@ -12,7 +12,8 @@ _config_cache: Optional[dict] = None
 
 
 def load_mysql_config() -> dict:
-    """从 config.yaml 读取 MySQL 配置（进程内缓存），未配置则使用默认本地参数。"""
+    """从 config.yaml 读取 MySQL 配置（进程内缓存），未配置则使用默认本地参数。
+    环境变量 MYSQL_HOST / MYSQL_PORT / MYSQL_USER / MYSQL_PASSWORD / MYSQL_DATABASE 会覆盖文件与默认值，便于 Docker 等部署。"""
     global _config_cache
     if _config_cache is not None:
         return _config_cache
@@ -29,12 +30,23 @@ def load_mysql_config() -> dict:
         "charset": "utf8mb4",
     }
     if not os.path.exists(config_path):
-        _config_cache = defaults
-        return _config_cache
-    with open(config_path, "r", encoding="utf-8") as f:
-        cfg = yaml.safe_load(f) or {}
-    mysql_cfg = cfg.get("mysql") or {}
-    _config_cache = {**defaults, **mysql_cfg}
+        _config_cache = {**defaults}
+    else:
+        with open(config_path, "r", encoding="utf-8") as f:
+            cfg = yaml.safe_load(f) or {}
+        mysql_cfg = cfg.get("mysql") or {}
+        _config_cache = {**defaults, **mysql_cfg}
+    # 环境变量覆盖（Docker / 生产部署）
+    if os.environ.get("MYSQL_HOST"):
+        _config_cache["host"] = os.environ["MYSQL_HOST"]
+    if os.environ.get("MYSQL_PORT"):
+        _config_cache["port"] = int(os.environ["MYSQL_PORT"])
+    if os.environ.get("MYSQL_USER"):
+        _config_cache["user"] = os.environ["MYSQL_USER"]
+    if os.environ.get("MYSQL_PASSWORD") is not None:
+        _config_cache["password"] = os.environ["MYSQL_PASSWORD"]
+    if os.environ.get("MYSQL_DATABASE"):
+        _config_cache["database"] = os.environ["MYSQL_DATABASE"]
     return _config_cache
 
 

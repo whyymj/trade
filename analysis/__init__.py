@@ -10,6 +10,14 @@
 - complexity: 非线性与复杂度分析
 - full_report: 综合分析报告生成器
 """
+import sys
+
+# 仅做清理时不必加载 matplotlib 等重量级依赖，直接清理并退出
+if any(a in ("--cleanup", "-c") for a in sys.argv[1:]):
+    from analysis.cleanup_temp import cleanup_analysis_temp_dirs
+    n = cleanup_analysis_temp_dirs()
+    print(f"已清理 {n} 个分析临时目录")
+    sys.exit(0)
 
 from analysis.time_domain import (
     analyze_time_domain,
@@ -52,6 +60,14 @@ from analysis.complexity import (
     calc_sample_entropy,
     create_phase_space,
 )
+from analysis.technical import (
+    analyze_technical,
+    calc_bollinger_bands,
+    calc_macd,
+    calc_rsi,
+    calc_rolling_volatility,
+    calc_var_historical,
+)
 
 __all__ = [
     # 时域分析
@@ -86,4 +102,11 @@ __all__ = [
     "calc_hurst_exponent",
     "calc_sample_entropy",
     "create_phase_space",
+    # 技术指标与风险
+    "analyze_technical",
+    "calc_rsi",
+    "calc_macd",
+    "calc_bollinger_bands",
+    "calc_rolling_volatility",
+    "calc_var_historical",
 ]
