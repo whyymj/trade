@@ -116,3 +116,114 @@ export async function apiExportReport(symbol, start, end) {
   }
   return res.blob()
 }
+
+// ---------- LSTM 训练与预测 ----------
+
+/** 获取 LSTM 训练推荐日期范围。query: { years?: 1|2, use_config?: 1 }。返回 { start, end, hint }。 */
+export function apiLstmRecommendedRange(query = {}) {
+  const params = new URLSearchParams()
+  if (query.years != null) params.set('years', String(query.years))
+  if (query.use_config) params.set('use_config', '1')
+  return request('/api/lstm/recommended-range?' + (params.toString() || 'years=1'))
+}
+
+/** 训练 LSTM 模型。body: { symbol, start?, end?, do_cv_tune?, do_shap?, do_plot?, fast_training? } */
+export function apiLstmTrain(body) {
+  return request('/api/lstm/train', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+  })
+}
+
+/** 一键训练全部股票。body: { start?, end?, years?, do_cv_tune?, do_shap?, do_plot?, fast_training? }。返回 { results, total, success_count, fail_count } */
+export function apiLstmTrainAll(body) {
+  return request('/api/lstm/train-all', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+  })
+}
+
+/** 获取指定股票最近一次预测记录，用于刷新页面后恢复展示。 */
+export function apiLstmLastPrediction(symbol) {
+  const params = new URLSearchParams()
+  params.set('symbol', symbol)
+  return request('/api/lstm/last-prediction?' + params.toString())
+}
+
+/** 使用已保存模型预测；options: { use_fallback?, trigger_train_async? }。返回含 direction, magnitude, prob_up, source, model_health。 */
+export function apiLstmPredict(symbol, options = {}) {
+  const params = new URLSearchParams()
+  params.set('symbol', symbol)
+  if (options.use_fallback) params.set('use_fallback', '1')
+  if (options.trigger_train_async) params.set('trigger_train_async', '1')
+  return request('/api/lstm/predict?' + params.toString())
+}
+
+/** 训练曲线图 URL（预测 vs 实际），加时间戳避免缓存。 */
+export function apiLstmPlotUrl() {
+  return API_BASE + '/api/lstm/plot?t=' + Date.now()
+}
+
+/** 全部股票及其一年/二年最后训练时间。返回 { stocks: [ { symbol, displayName, last_train_1y, last_train_2y } ] } */
+export function apiLstmStocksTrainingStatus() {
+  return request('/api/lstm/stocks-training-status')
+}
+
+/** 训练流水。query: { symbol?, limit? } */
+export function apiLstmTrainingRuns(query = {}) {
+  const params = new URLSearchParams()
+  if (query.symbol) params.set('symbol', query.symbol)
+  if (query.limit != null) params.set('limit', String(query.limit))
+  return request('/api/lstm/training-runs?' + (params.toString() || 'limit=50'))
+}
+
+/** 模型版本列表与当前版本。 */
+export function apiLstmVersions() {
+  return request('/api/lstm/versions')
+}
+
+/** 回滚到指定版本。body: { version_id } */
+export function apiLstmRollback(versionId) {
+  return request('/api/lstm/rollback', {
+    method: 'POST',
+    body: JSON.stringify({ version_id: versionId }),
+  })
+}
+
+/** 检查/执行训练触发。body: { symbol?, run? } */
+export function apiLstmCheckTriggers(body) {
+  return request('/api/lstm/check-triggers', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+  })
+}
+
+/** 回填预测准确性。body: { symbol, as_of_date? } */
+export function apiLstmUpdateAccuracy(body) {
+  return request('/api/lstm/update-accuracy', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+  })
+}
+
+/** 监控状态汇总。 */
+export function apiLstmMonitoring() {
+  return request('/api/lstm/monitoring')
+}
+
+/** 执行一次性能衰减检测。query: { threshold?, n_recent?, log? } */
+export function apiLstmPerformanceDecay(query = {}) {
+  const params = new URLSearchParams()
+  if (query.threshold != null) params.set('threshold', String(query.threshold))
+  if (query.n_recent != null) params.set('n_recent', String(query.n_recent))
+  if (query.log != null) params.set('log', query.log ? '1' : '0')
+  return request('/api/lstm/performance-decay?' + (params.toString() || 'log=1'))
+}
+
+/** 检查告警；body.fire=true 时发送 webhook。 */
+export function apiLstmAlerts(body) {
+  return request('/api/lstm/alerts', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+  })
+}

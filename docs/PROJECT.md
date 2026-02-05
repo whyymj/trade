@@ -2,7 +2,7 @@
 
 ## 一、项目概述
 
-本项目为**股票数据与展示**系统：支持从网络拉取股票日线数据、本地存储与配置管理，通过 Web 前端（Vue3 + ECharts）展示价格与成交量曲线，并提供股票分析模块（时域、频域、ARIMA、形态相似度、复杂度等）用于离线分析报告生成。
+本项目为**股票数据与展示**系统：支持从网络拉取股票日线数据、本地存储与配置管理，通过 Web 前端（Vue3 + ECharts）展示价格与成交量曲线，并提供股票分析模块（时域、频域、ARIMA、形态相似度、复杂度、**LSTM 深度学习预测**等）用于离线分析报告生成与 API 预测。
 
 - **前后分离**：后端 Flask API 提供数据接口，前端 Vue3 + Vite 独立开发与构建，生产时由后端统一提供静态资源。
 - **关注点分离**：后端分为应用工厂、路由、工具；前端分为路由、状态、API、视图；配置与数据集中在项目根目录。
@@ -23,7 +23,7 @@
 | 前端 | Vue Router | 路由 |
 | 前端 | Pinia | 状态管理 |
 | 前端 | ECharts | 图表展示 |
-| 分析 | analysis 包 | 时域、频域、ARIMA、形态、复杂度等 |
+| 分析 | analysis 包 | 时域、频域、ARIMA、形态、复杂度、LSTM（PyTorch）等 |
 
 ---
 
@@ -51,6 +51,7 @@ trade/
 │   ├── arima_model.py      # ARIMA 预测
 │   ├── shape_similarity.py # 形态相似度、DTW
 │   ├── complexity.py      # 非线性与复杂度分析
+│   ├── lstm_model.py      # LSTM 深度学习（60 日特征→5 日方向/涨跌幅、交叉验证、SHAP）
 │   └── full_report.py      # 综合分析报告生成
 ├── frontend/               # 前端工程（Vue3 + Vite）
 │   ├── index.html
@@ -182,6 +183,9 @@ make install
 | POST | `/api/add_stock` | 抓取该股票近 5 年日线并加入 config.stocks（Body: `{"code":"600519"}`） |
 | POST | `/api/sync_all` | 全量同步：清空 DB 后按 config.stocks 拉取并写入 |
 | POST | `/api/remove_stock` | 从 config 移除股票并删除库中该股数据（Body: `{"code":"600519"}`） |
+| GET | `/api/analyze` | 综合分析（时域/频域/ARIMA/复杂度等）。Query: symbol, start, end |
+| POST | `/api/lstm/train` | 训练 LSTM 模型（Body: symbol, start, end）。返回 metrics、可解释性、图表路径 |
+| GET | `/api/lstm/predict` | 使用已保存 LSTM 模型预测指定股票未来 5 日方向与涨跌幅。Query: symbol |
 
 请求/响应格式、错误码等详见 **docs/API.md**。
 
@@ -212,6 +216,7 @@ make install
 | `arima_model` | ARIMA 建模、预测、残差与指标 |
 | `shape_similarity` | 形态相似度、DTW、曲线对比与模式匹配 |
 | `complexity` | 非线性与复杂度（如近似熵等） |
+| `lstm_model` | LSTM 深度学习：60 日特征→未来 5 日方向（分类）与涨跌幅（回归），交叉验证与超参优化、SHAP/特征重要性、模型保存与预测；依赖 PyTorch、scikit-learn、shap |
 | `full_report` | 综合分析报告生成（可指定 CSV 与输出目录） |
 
 使用示例（在项目根目录执行，需提供本地 CSV 路径）：  
@@ -225,7 +230,7 @@ python -m analysis.full_report data/白银有色（20250129-20260129）.csv
 ## 十、环境与依赖
 
 
-- **Python**：建议 3.10+，依赖见 `requirements.txt`（含 akshare、pandas、Flask、matplotlib、scipy、statsmodels、PyWavelets 等）。
+- **Python**：建议 3.10+，依赖见 `requirements.txt`（含 akshare、pandas、Flask、matplotlib、scipy、statsmodels、PyWavelets、**torch**、scikit-learn、shap 等；LSTM 模块需 PyTorch）。
 - **Node**：建议 18+，用于前端开发与构建；前端依赖见 `frontend/package.json`（Vue3、Vite、Vue Router、Pinia、ECharts）。
 
 ---

@@ -1,5 +1,13 @@
 {
   "pythonVersion": "3.12",
   "reportMissingImports": false,
-  "reportMissingModuleSource": false
+  "reportMissingModuleSource": false,
+  "overrides": [
+    {
+      "include": ["analysis/lstm_model.py"],
+      "reportOptionalMemberAccess": "none",
+      "reportOptionalCall": "none",
+      "reportUnboundVariable": "none"
+    }
+  ]
 }

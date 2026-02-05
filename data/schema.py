@@ -121,6 +121,135 @@ def migrate_backfill_first_trade_date() -> None:
         pass
 
 
+# ---------- LSTM 训练相关表 ----------
+
+
+def create_lstm_training_run_table() -> None:
+    """LSTM 训练流水：每次训练（完整/增量）记录参数、指标、验证结果。"""
+    sql = """
+    CREATE TABLE IF NOT EXISTS lstm_training_run (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        version_id VARCHAR(32) DEFAULT NULL COMMENT '保存后的版本号，失败或未部署可为空',
+        symbol VARCHAR(32) NOT NULL,
+        training_type VARCHAR(16) NOT NULL COMMENT 'full|incremental',
+        trigger_type VARCHAR(32) DEFAULT NULL COMMENT 'manual|weekly|monthly|quarterly|performance_decay',
+        data_start DATE DEFAULT NULL,
+        data_end DATE DEFAULT NULL,
+        params_json JSON DEFAULT NULL COMMENT 'lr, hidden_size, epochs, batch_size, do_cv_tune 等',
+        metrics_json JSON DEFAULT NULL COMMENT 'accuracy, f1, mse, recall',
+        validation_deployed TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否通过样本外验证并部署',
+        validation_reason VARCHAR(512) DEFAULT NULL,
+        holdout_metrics_json JSON DEFAULT NULL,
+        duration_seconds INT UNSIGNED DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_symbol (symbol),
+        KEY idx_version_id (version_id),
+        KEY idx_created_at (created_at),
+        KEY idx_training_type (training_type)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='LSTM训练流水'
+    """
+    execute(sql)
+
+
+def create_lstm_current_version_table() -> None:
+    """当前使用的 LSTM 模型版本（单行，id=1）。"""
+    sql = """
+    CREATE TABLE IF NOT EXISTS lstm_current_version (
+        id TINYINT UNSIGNED NOT NULL PRIMARY KEY DEFAULT 1,
+        version_id VARCHAR(32) NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        CONSTRAINT single_row CHECK (id = 1)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='当前LSTM模型版本'
+    """
+    execute(sql)
+
+
+def create_lstm_prediction_log_table() -> None:
+    """预测记录：每次预测写入一条，用于后续准确性回填。"""
+    sql = """
+    CREATE TABLE IF NOT EXISTS lstm_prediction_log (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        symbol VARCHAR(32) NOT NULL,
+        predict_date DATE NOT NULL,
+        direction TINYINT NOT NULL COMMENT '0跌 1涨',
+        magnitude DECIMAL(12,6) NOT NULL,
+        prob_up DECIMAL(8,4) NOT NULL,
+        model_version_id VARCHAR(32) DEFAULT NULL,
+        source VARCHAR(16) NOT NULL DEFAULT 'lstm' COMMENT 'lstm|arima|technical',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_symbol_predict (symbol, predict_date),
+        KEY idx_symbol (symbol),
+        KEY idx_predict_date (predict_date)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='LSTM预测记录'
+    """
+    execute(sql)
+
+
+def create_lstm_accuracy_record_table() -> None:
+    """准确性回填：有实际行情后写入，用于监控与性能衰减判断。"""
+    sql = """
+    CREATE TABLE IF NOT EXISTS lstm_accuracy_record (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        symbol VARCHAR(32) NOT NULL,
+        predict_date DATE NOT NULL,
+        actual_date DATE NOT NULL,
+        pred_direction TINYINT NOT NULL,
+        pred_magnitude DECIMAL(12,6) NOT NULL,
+        actual_direction TINYINT NOT NULL,
+        actual_magnitude DECIMAL(12,6) NOT NULL,
+        error_magnitude DECIMAL(12,6) NOT NULL,
+        direction_correct TINYINT NOT NULL COMMENT '0|1',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_symbol_predict (symbol, predict_date),
+        KEY idx_symbol (symbol),
+        KEY idx_actual_date (actual_date)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='LSTM预测准确性回填'
+    """
+    execute(sql)
+
+
+def create_lstm_training_failure_table() -> None:
+    """训练失败记录：用于告警（失败≥3次）。"""
+    sql = """
+    CREATE TABLE IF NOT EXISTS lstm_training_failure (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        symbol VARCHAR(32) NOT NULL,
+        error_message TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_symbol (symbol),
+        KEY idx_created_at (created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='LSTM训练失败记录'
+    """
+    execute(sql)
+
+
+def create_lstm_model_version_table() -> None:
+    """LSTM 模型版本：版本号、元数据 JSON、模型权重 BLOB，替代本地 analysis_temp/lstm/versions 目录。"""
+    sql = """
+    CREATE TABLE IF NOT EXISTS lstm_model_version (
+        version_id VARCHAR(32) NOT NULL PRIMARY KEY,
+        training_time VARCHAR(64) DEFAULT NULL,
+        data_start DATE DEFAULT NULL,
+        data_end DATE DEFAULT NULL,
+        metadata_json JSON DEFAULT NULL,
+        model_blob LONGBLOB DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_created_at (created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='LSTM模型版本(权重+元数据)'
+    """
+    execute(sql)
+
+
+def create_lstm_tables() -> None:
+    """创建 LSTM 相关全部表（幂等）。"""
+    create_lstm_training_run_table()
+    create_lstm_current_version_table()
+    create_lstm_prediction_log_table()
+    create_lstm_accuracy_record_table()
+    create_lstm_training_failure_table()
+    create_lstm_model_version_table()
+
+
 def create_all_tables() -> None:
     """创建全部业务表（幂等）；并执行可选迁移。"""
     create_stock_meta_table()
@@ -129,6 +258,7 @@ def create_all_tables() -> None:
     migrate_stock_meta_remark()
     migrate_backfill_first_trade_date()
     create_stock_daily_table()
+    create_lstm_tables()
 
 
 if __name__ == "__main__":
@@ -138,4 +268,4 @@ if __name__ == "__main__":
         print("数据库连接失败，请检查 config.yaml 中 mysql 配置。")
         exit(1)
     create_all_tables()
-    print("表已创建，迁移已执行。")
+    print("表已创建（含 LSTM 训练相关），迁移已执行。")

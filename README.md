@@ -7,7 +7,7 @@
 - **数据展示**：前端选择股票，ECharts 展示日线（开高低收、成交量等）。
 - **数据管理**：通过前端添加股票、一键更新全部、全量同步、移除股票；配置日期范围、复权方式、股票列表等。
 - **数据存储**：MySQL（表 `stock_meta`、`stock_daily`），支持按日增量更新。
-- **分析模块**：离线分析包（时域、频域、ARIMA、形态相似度、复杂度等），可对本地 CSV 或导出数据生成报告。
+- **分析模块**：离线分析包（时域、频域、ARIMA、形态相似度、复杂度、**LSTM 深度学习预测**等），可对本地 CSV 或导出数据生成报告；LSTM 支持未来 5 日方向与涨跌幅预测、交叉验证、SHAP 可解释性。
 
 **完整说明**：见 [docs/PROJECT.md](docs/PROJECT.md)；接口细节见 [docs/API.md](docs/API.md)。
 
@@ -81,6 +81,6 @@ docker compose up -d --build
 
 ## 环境与依赖
 
-- **Python 3.10+**：见 `requirements.txt`（Flask、akshare、pandas、PyMySQL、PyYAML 等）。
+- **Python 3.10+**：见 `requirements.txt`（Flask、akshare、pandas、PyMySQL、PyYAML、**torch**、scikit-learn、shap 等；LSTM 模块依赖 PyTorch）。
 - **MySQL**：需先创建数据库（如 `trade_cache`），在 `config.yaml` 的 `mysql` 中配置连接（Docker 部署时由环境变量覆盖）。
 - **Node 18+、pnpm**：前端开发与构建，`cd frontend && pnpm install`。

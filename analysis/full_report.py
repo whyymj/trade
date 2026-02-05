@@ -412,6 +412,39 @@ def generate_summary_section(
     return "\n".join(sections)
 
 
+def generate_ai_conclusions_section(ai_conclusions: dict) -> str:
+    """
+    生成「结论摘要（供AI解析）」章节：结构化结论、策略建议、风险与可预测性等级、
+    一段话摘要，以及机器可读的 JSON 块，便于 AI 或程序直接解析。
+    """
+    if not ai_conclusions:
+        return "\n## 7. 结论摘要（供AI解析）\n\n无结构化结论（数据或分析不足）。\n"
+    sections = []
+    sections.append("\n## 7. 结论摘要（供AI解析）\n")
+    sections.append("本节为程序与 AI 解析设计：包含结构化结论、策略建议、风险与可预测性等级及一段话摘要。\n")
+    sections.append("### 综合等级\n")
+    sections.append(f"- **风险等级**: {ai_conclusions.get('risk_level', 'medium')}（low/medium/high）")
+    sections.append(f"- **可预测性**: {ai_conclusions.get('predictability', 'medium')}（low/medium/high）\n")
+    sections.append("### 结论条目\n")
+    for c in ai_conclusions.get("conclusions", []):
+        val = f" (数值: {c.get('value')})" if c.get("value") is not None else ""
+        sections.append(f"- **[{c.get('category', '')}]** {c.get('summary', '')}{val}")
+    suggestions = ai_conclusions.get("strategy_suggestions", [])
+    if suggestions:
+        sections.append("\n### 策略建议\n")
+        for s in suggestions:
+            sections.append(f"- {s}")
+    one = ai_conclusions.get("one_paragraph", "")
+    if one:
+        sections.append("\n### 一段话摘要（可供 AI 直接引用）\n")
+        sections.append(one)
+    sections.append("\n### 机器可读 JSON（供程序/AI 解析）\n")
+    sections.append("```json")
+    sections.append(json.dumps(ai_conclusions, ensure_ascii=False, indent=2))
+    sections.append("```")
+    return "\n".join(sections)
+
+
 def generate_technical_section(tech_result: dict) -> str:
     """生成技术指标与风险部分。"""
     sections = []
@@ -448,6 +481,208 @@ def generate_technical_section(tech_result: dict) -> str:
         sections.append("\n### 周线周期（摘要）\n")
         sections.append(f"- OBV(周): {format_number(wl.get('obv'))} | MFI(周): {format_number(wl.get('mfi'))} | Aroon上/下: {format_number(wl.get('aroon_up'))} / {format_number(wl.get('aroon_down'))}")
     return "\n".join(sections)
+
+
+def _build_ai_conclusions(
+    time_result: dict,
+    freq_result: dict,
+    arima_result: dict,
+    complexity_result: dict,
+    tech_result: dict | None,
+) -> dict:
+    """
+    从各分析结果提炼结构化结论与策略建议，供程序/AI 解析。
+    返回: conclusions, strategy_suggestions, risk_level, predictability, one_paragraph
+    """
+    conclusions: list[dict] = []
+    strategy_suggestions: list[str] = []
+
+    hurst = complexity_result.get("hurst_exponent")
+    if hurst is not None:
+        if hurst > 0.6:
+            conclusions.append({
+                "category": "趋势",
+                "summary": "序列呈现趋势增强特征，价格走势具有持续性",
+                "value": round(float(hurst), 4),
+                "interpretation": "趋势增强",
+            })
+        elif hurst < 0.4:
+            conclusions.append({
+                "category": "趋势",
+                "summary": "序列呈现均值回复特征，价格倾向于向均值回归",
+                "value": round(float(hurst), 4),
+                "interpretation": "均值回复",
+            })
+        else:
+            conclusions.append({
+                "category": "趋势",
+                "summary": "序列接近随机游走，短期预测难度较大",
+                "value": round(float(hurst), 4),
+                "interpretation": "随机游走",
+            })
+
+    sample_entropy = complexity_result.get("sample_entropy")
+    if sample_entropy is not None:
+        if sample_entropy < 1.0:
+            conclusions.append({
+                "category": "复杂度",
+                "summary": "序列复杂度较低，存在一定规律性和可预测性",
+                "value": round(float(sample_entropy), 4),
+                "interpretation": "低复杂度",
+            })
+        elif sample_entropy > 1.5:
+            conclusions.append({
+                "category": "复杂度",
+                "summary": "序列复杂度较高，随机性强，预测难度大",
+                "value": round(float(sample_entropy), 4),
+                "interpretation": "高复杂度",
+            })
+        else:
+            conclusions.append({
+                "category": "复杂度",
+                "summary": "序列复杂度中等",
+                "value": round(float(sample_entropy), 4),
+                "interpretation": "中等复杂度",
+            })
+
+    dominant_periods = freq_result.get("dominant_periods", [])
+    if dominant_periods:
+        main = dominant_periods[0]
+        conclusions.append({
+            "category": "周期",
+            "summary": f"主周期约 {main['period_days']:.1f} 天，可作为交易周期参考",
+            "value": round(float(main["period_days"]), 1),
+            "interpretation": "存在显著周期",
+        })
+
+    r2 = (arima_result.get("metrics") or {}).get("r_squared")
+    if r2 is not None:
+        if r2 > 0.9:
+            conclusions.append({
+                "category": "可预测性",
+                "summary": "ARIMA 拟合优度高，短期预测相对可靠",
+                "value": round(float(r2), 4),
+                "interpretation": "高",
+            })
+        elif r2 > 0.6:
+            conclusions.append({
+                "category": "可预测性",
+                "summary": "ARIMA 拟合一般，预测需谨慎参考",
+                "value": round(float(r2), 4),
+                "interpretation": "中",
+            })
+        else:
+            conclusions.append({
+                "category": "可预测性",
+                "summary": "ARIMA 拟合较差，预测参考价值有限",
+                "value": round(float(r2), 4) if r2 is not None else None,
+                "interpretation": "低",
+            })
+
+    max_dd = (time_result.get("basic_stats") or {}).get("max_drawdown")
+    if max_dd is not None:
+        max_dd_pct = max_dd * 100
+        if max_dd_pct > 25:
+            conclusions.append({
+                "category": "风险",
+                "summary": f"最大回撤 {max_dd_pct:.1f}%，风险较高",
+                "value": round(float(max_dd_pct), 2),
+                "interpretation": "高",
+            })
+        elif max_dd_pct > 15:
+            conclusions.append({
+                "category": "风险",
+                "summary": f"最大回撤 {max_dd_pct:.1f}%，风险中等",
+                "value": round(float(max_dd_pct), 2),
+                "interpretation": "中",
+            })
+        else:
+            conclusions.append({
+                "category": "风险",
+                "summary": f"最大回撤 {max_dd_pct:.1f}%，相对可控",
+                "value": round(float(max_dd_pct), 2),
+                "interpretation": "低",
+            })
+
+    if tech_result:
+        last = tech_result.get("last") or {}
+        rsi = last.get("rsi")
+        if rsi is not None:
+            if rsi >= 70:
+                conclusions.append({
+                    "category": "技术信号",
+                    "summary": "RSI 超买区域，短期可能回调",
+                    "value": round(float(rsi), 2),
+                    "interpretation": "超买",
+                })
+            elif rsi <= 30:
+                conclusions.append({
+                    "category": "技术信号",
+                    "summary": "RSI 超卖区域，短期可能反弹",
+                    "value": round(float(rsi), 2),
+                    "interpretation": "超卖",
+                })
+        sig = last.get("signals") or {}
+        if sig.get("combined") and sig.get("combined") != "中性":
+            conclusions.append({
+                "category": "技术信号",
+                "summary": f"综合信号: {sig.get('combined', '')}",
+                "value": None,
+                "interpretation": sig.get("combined", ""),
+            })
+
+    # 风险等级
+    risk_level = "medium"
+    if max_dd is not None:
+        if max_dd * 100 > 25:
+            risk_level = "high"
+        elif max_dd * 100 <= 15:
+            risk_level = "low"
+    vol = (tech_result or {}).get("last") or {}
+    if vol.get("volatility_annual") is not None and risk_level == "medium":
+        if vol.get("volatility_annual", 0) > 0.4:
+            risk_level = "high"
+        elif vol.get("volatility_annual", 0) < 0.2:
+            risk_level = "low"
+
+    # 可预测性等级
+    predictability = "medium"
+    if r2 is not None:
+        if r2 > 0.85 and (sample_entropy is None or sample_entropy < 1.2):
+            predictability = "high"
+        elif r2 < 0.5 or (sample_entropy is not None and sample_entropy > 1.5):
+            predictability = "low"
+
+    # 策略建议
+    if hurst is not None and r2 is not None:
+        if hurst > 0.55 and r2 > 0.85:
+            strategy_suggestions.append("趋势特征明显且模型拟合良好，建议采用趋势跟踪策略，可参考 ARIMA 预测方向辅助决策。")
+        elif hurst < 0.45:
+            strategy_suggestions.append("均值回复特征明显，建议关注网格交易或均值回归策略，关注价格偏离均线的程度。")
+        else:
+            strategy_suggestions.append("序列接近随机，建议短线谨慎、中长期观察，结合基本面与技术面综合判断。")
+    if sample_entropy is not None and sample_entropy > 1.5:
+        strategy_suggestions.append("高复杂度表明市场效率较高，量化模型预测优势有限，建议控制仓位与止损。")
+    tech_last = (tech_result or {}).get("last") or {}
+    rsi_val = tech_last.get("rsi")
+    if rsi_val is not None and (rsi_val >= 70 or rsi_val <= 30):
+        strategy_suggestions.append("当前 RSI 处于极值区，可结合超买超卖信号把握短期波动。")
+
+    # 一段话摘要（供 AI 直接引用）
+    parts = []
+    for c in conclusions[:5]:
+        parts.append(c["summary"])
+    one_paragraph = " ".join(parts) if parts else "数据不足或分析未产出有效结论。"
+    if strategy_suggestions:
+        one_paragraph += " 策略建议: " + " ".join(strategy_suggestions[:2])
+
+    return {
+        "conclusions": conclusions,
+        "strategy_suggestions": strategy_suggestions,
+        "risk_level": risk_level,
+        "predictability": predictability,
+        "one_paragraph": one_paragraph,
+    }
 
 
 def generate_json_summary(
@@ -522,6 +757,9 @@ def generate_json_summary(
         weekly = (tech_result.get("by_timeframe") or {}).get("weekly")
         if weekly and weekly.get("last"):
             out["technical"]["weekly"] = weekly["last"]
+    out["ai_conclusions"] = _build_ai_conclusions(
+        time_result, freq_result, arima_result, complexity_result, tech_result
+    )
     return out
 
 
@@ -770,6 +1008,9 @@ def run_analysis_from_dataframe(
             time_result, freq_result, arima_result, complexity_result
         )
     )
+    report_parts.append(
+        generate_ai_conclusions_section(json_summary.get("ai_conclusions") or {})
+    )
     report_md = "\n".join(report_parts)
 
     charts = _build_charts_data(time_result, freq_result, complexity_result, prices, tech_result)
@@ -831,6 +1072,9 @@ def build_export_document(
     summary_clean = _json_safe(summary)
     summary_json = json.dumps(summary_clean, ensure_ascii=False, indent=2)
 
+    ai_conclusions = summary_clean.get("ai_conclusions") or {}
+    ai_conclusions_json = json.dumps(ai_conclusions, ensure_ascii=False, indent=2)
+
     lines = [
         "---",
         "title: \"股票综合分析报告\"",
@@ -850,10 +1094,46 @@ def build_export_document(
         "",
         "---",
         "",
+        "## 结论摘要（供AI解析）",
+        "",
+        "以下为提炼后的结论、策略建议与综合等级，便于 AI 直接归纳结论。",
+        "",
+        "| 项目 | 内容 |",
+        "|------|------|",
+        f"| 风险等级 | {ai_conclusions.get('risk_level', 'N/A')} |",
+        f"| 可预测性 | {ai_conclusions.get('predictability', 'N/A')} |",
+    ]
+    one_para = (ai_conclusions.get("one_paragraph") or "N/A").replace("\n", " ").replace("|", "｜")[:500]
+    lines.append(f"| 一段话摘要 | {one_para} |")
+    lines.extend([
+        "",
+        "**结论条目**:",
+        "",
+    ])
+    for c in ai_conclusions.get("conclusions", []):
+        val = f" (值: {c.get('value')})" if c.get("value") is not None else ""
+        lines.append(f"- [{c.get('category', '')}] {c.get('summary', '')}{val}")
+    lines.extend([
+        "",
+        "**策略建议**:",
+        "",
+    ])
+    for s in ai_conclusions.get("strategy_suggestions", []):
+        lines.append(f"- {s}")
+    lines.extend([
+        "",
+        "**机器可读 JSON（结论部分）**:",
+        "",
+        "```json",
+        ai_conclusions_json,
+        "```",
+        "",
+        "---",
+        "",
         "# 完整报告正文",
         "",
         report_md,
-    ]
+    ])
     return "\n".join(lines)
 
 
@@ -923,8 +1203,13 @@ def generate_full_report(
         returns, save_dir=complexity_dir, show_plots=show_plots
     )
 
-    # 生成报告
+    tech_result = analyze_technical(prices, returns, df=df)
+
+    # 生成报告（先算 JSON 摘要以包含 ai_conclusions）
     print("\n[6/6] 生成分析报告...")
+    json_summary = generate_json_summary(
+        stock_name, prices, time_result, freq_result, arima_result, complexity_result, tech_result
+    )
 
     # Markdown报告
     report_parts = []
@@ -937,9 +1222,11 @@ def generate_full_report(
     report_parts.append(generate_frequency_domain_section(freq_result))
     report_parts.append(generate_arima_section(arima_result))
     report_parts.append(generate_complexity_section(complexity_result))
+    report_parts.append(generate_technical_section(tech_result))
     report_parts.append(generate_summary_section(
         time_result, freq_result, arima_result, complexity_result
     ))
+    report_parts.append(generate_ai_conclusions_section(json_summary.get("ai_conclusions") or {}))
 
     # 附录：图表列表
     report_parts.append("\n## 附录：生成的图表文件\n")
@@ -972,10 +1259,6 @@ def generate_full_report(
         f.write(markdown_report)
     print(f"  Markdown报告: {report_path}")
 
-    # JSON摘要
-    json_summary = generate_json_summary(
-        stock_name, prices, time_result, freq_result, arima_result, complexity_result
-    )
     json_path = output_dir / "summary.json"
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(json_summary, f, ensure_ascii=False, indent=2)

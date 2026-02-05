@@ -1,0 +1,7 @@
+[
+  {
+    "symbol": "000901",
+    "error": "LSTM 模型需写入数据库，请确保 data.lstm_repo 可用并已执行 create_lstm_tables。",
+    "at": "2026-02-05T15:26:42.847326"
+  }
+]

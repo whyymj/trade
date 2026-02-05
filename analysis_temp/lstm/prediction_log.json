@@ -1,0 +1,65 @@
+[
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-05",
+    "direction": 1,
+    "magnitude": 0.021407,
+    "prob_up": 0.6169,
+    "model_version_id": null,
+    "recorded_at": "2026-02-05T14:11:54.851653"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-05",
+    "direction": 1,
+    "magnitude": 0.02140665054321289,
+    "prob_up": 0.6169418096542358,
+    "model_version_id": null,
+    "recorded_at": "2026-02-05T14:13:53.696594"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-05",
+    "direction": 1,
+    "magnitude": 0.02140665054321289,
+    "prob_up": 0.6169418096542358,
+    "model_version_id": null,
+    "recorded_at": "2026-02-05T14:13:57.954711"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-05",
+    "direction": 1,
+    "magnitude": 0.021407,
+    "prob_up": 0.6169,
+    "model_version_id": null,
+    "recorded_at": "2026-02-05T14:14:09.259863"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-05",
+    "direction": 1,
+    "magnitude": 0.050658274441957474,
+    "prob_up": 0.7170644998550415,
+    "model_version_id": "20260205_153031",
+    "recorded_at": "2026-02-05T15:39:13.992303"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-05",
+    "direction": 1,
+    "magnitude": 0.050658274441957474,
+    "prob_up": 0.7170644998550415,
+    "model_version_id": "20260205_153031",
+    "recorded_at": "2026-02-05T15:40:35.460646"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-05",
+    "direction": 1,
+    "magnitude": 0.04778312146663666,
+    "prob_up": 0.574896514415741,
+    "model_version_id": "20260205_153031",
+    "recorded_at": "2026-02-05T15:40:52.441628"
+  }
+]

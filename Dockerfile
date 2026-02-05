@@ -18,16 +18,16 @@ RUN pnpm run build
 FROM python:3.12-slim
 WORKDIR /app
 
-# 系统依赖（若需 matplotlib 等可加 libpng；按需精简）
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# 系统依赖（ca-certificates 等；若需 matplotlib 显示可加 libpng-dev）
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
+# 安装全部 Python 依赖（含 LSTM：torch、scikit-learn、shap），便于自动部署无需再手动 pip
 COPY requirements.txt ./
-# 使用 BuildKit 缓存挂载，pip 下载的包跨构建复用（需 DOCKER_BUILDKIT=1）
-# 发布流程默认使用国内镜像源加速（见 docker-compose.yml build.args）
 ARG PIP_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
 RUN --mount=type=cache,target=/root/.cache/pip,id=trade-pip-cache \
-    pip install -r requirements.txt -i "$PIP_INDEX"
+    pip install -r requirements.txt -i "$PIP_INDEX" \
+    && python -c "import torch; import sklearn; import shap; print('LSTM deps OK')"
 
 # 后端与数据层、分析模块
 COPY server.py ./

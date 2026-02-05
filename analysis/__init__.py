@@ -9,6 +9,7 @@
 - shape_similarity: 几何形态与相似度匹配
 - complexity: 非线性与复杂度分析
 - full_report: 综合分析报告生成器
+- lstm_model: LSTM 深度学习预测（方向+幅度）、交叉验证、SHAP 可解释性
 """
 import sys
 
@@ -69,6 +70,23 @@ from analysis.technical import (
     calc_var_historical,
 )
 
+try:
+    from analysis.lstm_model import (
+        build_features_from_df,
+        cross_validate_and_tune,
+        load_model,
+        run_lstm_pipeline,
+        train_and_save,
+    )
+    _LSTM_AVAILABLE = True
+except Exception:
+    _LSTM_AVAILABLE = False
+    build_features_from_df = None
+    cross_validate_and_tune = None
+    load_model = None
+    run_lstm_pipeline = None
+    train_and_save = None
+
 __all__ = [
     # 时域分析
     "analyze_time_domain",
@@ -109,4 +127,10 @@ __all__ = [
     "calc_bollinger_bands",
     "calc_rolling_volatility",
     "calc_var_historical",
+    # LSTM 预测（可选，依赖 torch）
+    "build_features_from_df",
+    "cross_validate_and_tune",
+    "load_model",
+    "run_lstm_pipeline",
+    "train_and_save",
 ]

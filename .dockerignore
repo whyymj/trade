@@ -17,6 +17,7 @@ config.yaml
 
 # 输出与临时
 output
+analysis_temp
 *.log
 data/mysql.log
 .deploy-rev

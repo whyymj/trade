@@ -1,3 +1,5 @@
+# 一键部署：docker compose up -d --build
+# 镜像内已集成全部依赖（含 LSTM：torch、scikit-learn、shap），无需再手动 pip install
 services:
   trade-app:
     build:

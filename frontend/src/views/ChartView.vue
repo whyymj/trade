@@ -2,6 +2,15 @@
   <div class="container">
     <div class="nav-row">
       <el-link type="primary" underline="never" @click="goBack">← 返回列表</el-link>
+      <el-link
+        v-if="symbol"
+        type="primary"
+        underline="never"
+        class="nav-link"
+        @click="$router.push({ path: '/lstm', query: { symbol } })"
+      >
+        LSTM 训练/预测
+      </el-link>
     </div>
 
     <template v-if="symbol">
@@ -842,6 +851,12 @@ h1 {
 }
 .nav-row {
   margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.nav-link {
+  margin-left: 0;
 }
 .range-row {
   display: flex;

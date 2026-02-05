@@ -175,3 +175,14 @@ docker compose ps trade-mysql
 | **代理超时时间过短** | 若前面有 Nginx 等，适当调大 `proxy_read_timeout` / `proxy_connect_timeout`。 |
 
 接口侧：无数据时已改为返回 **404**（并带提示文案），不再因未捕获异常导致进程退出；若仍出现 502，请结合代理与容器日志排查。
+
+---
+
+## 十、LSTM 训练/预测相关
+
+| 现象 | 可能原因 | 处理 |
+|------|----------|------|
+| `/api/lstm/train` 或 `/api/lstm/predict` 返回 **503** | LSTM 模块不可用（未安装 PyTorch、scikit-learn） | 安装依赖：`pip install torch scikit-learn shap`；Docker 镜像已含，若自建环境请检查 `requirements.txt`。 |
+| 训练返回 **400**「样本不足，需要至少 65 个交易日数据」 | 该股票在 start～end 范围内不足 65 个交易日 | 扩大日期范围或先对该股票执行「一键更新」再训练。 |
+| 预测返回 **404**「未找到已保存的模型」 | 尚未对该环境训练过 LSTM，或模型目录被清空 | 先调用 `POST /api/lstm/train` 完成一次训练；Docker 中未挂载 `analysis_temp` 时重启容器后需重新训练。 |
+| 训练/预测很慢或 OOM | PyTorch 默认占内存；数据量大或 SHAP 计算耗时 | 训练时可在 body 中设 `do_shap: false` 减少内存与时间；或缩小日期范围。 |

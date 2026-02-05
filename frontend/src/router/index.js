@@ -16,6 +16,12 @@ const routes = [
     component: () => import('@/views/ChartView.vue'),
     meta: { title: '股票曲线' },
   },
+  {
+    path: '/lstm',
+    name: 'LSTM',
+    component: () => import('@/views/LSTMView.vue'),
+    meta: { title: 'LSTM 训练与预测' },
+  },
 ]
 
 const router = createRouter({

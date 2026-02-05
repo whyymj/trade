@@ -30,7 +30,7 @@
 | **前端** | 构建产物 `frontend/dist`，由后端托管 | Vue3、Vite、ECharts、Element Plus |
 | **配置** | 根目录 `config.yaml`：日期范围、复权、股票列表、MySQL 连接 | YAML |
 | **数据库** | MySQL：表 `stock_meta`、`stock_daily`，启动时自动建表 | MySQL 5.7+ / 8.x |
-| **分析模块** | `analysis/` 包，可离线跑报告，输出到 `output/` | 独立于 Web，按需使用 |
+| **分析模块** | `analysis/` 包（时域、频域、ARIMA、**LSTM 深度学习**等），可离线跑报告；LSTM 模型保存于 `analysis_temp/lstm/` | 独立于 Web，按需使用；LSTM 依赖 PyTorch，镜像内含 torch、scikit-learn、shap |
 
 ### 数据流
 
@@ -52,9 +52,9 @@
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-- **镜像**：一个应用镜像内同时包含前端静态与后端代码，无需单独前端容器。
+- **镜像**：一个应用镜像内同时包含前端静态与后端代码，无需单独前端容器；依赖含 PyTorch（LSTM）、体积较大，构建时间较长。
 - **数据库**：由 `docker-compose` 启动 MySQL 服务，应用通过环境变量连接（不把密码写进镜像）。
-- **配置**：容器内可提供默认 `config.yaml`；MySQL 连接由环境变量覆盖。若需持久化股票列表等，可挂载宿主机 `config.yaml`。
+- **配置**：容器内可提供默认 `config.yaml`；MySQL 连接由环境变量覆盖。若需持久化股票列表等，可挂载宿主机 `config.yaml`。LSTM 训练后的模型默认写在容器内 `analysis_temp/lstm/`，重启后需重新训练，可选挂载该目录以持久化模型。
 
 ---
 
@@ -63,11 +63,12 @@
 ### 3.1 构建并启动（含 MySQL）
 
 ```bash
-# 在项目根目录
+# 在项目根目录（依赖已集成进镜像，无需在宿主机或容器内再执行 pip install）
 docker compose up -d --build
 ```
 
-- 首次会构建应用镜像（含前端构建），并拉取 MySQL 镜像、创建网络与数据卷。
+- 首次会构建应用镜像：安装 **requirements.txt 全部依赖**（含前端构建、Python 后端及 **LSTM 所需 torch、scikit-learn、shap**），并拉取 MySQL 镜像、创建网络与数据卷。
+- 构建结束时镜像内会自动校验 LSTM 依赖（`import torch; import sklearn; import shap`），失败则构建报错便于排查。
 - 应用访问：<http://localhost:5050>
 - MySQL 对外端口可在 `docker-compose.yml` 中按需映射（默认仅容器内访问）。
 
@@ -97,6 +98,16 @@ volumes:
 
 注意：MySQL 连接仍可由环境变量覆盖，挂载的 `config.yaml` 中可保留或省略 `mysql` 段。
 
+### 3.5 持久化 LSTM 模型（可选）
+
+若希望容器重启后保留已训练的 LSTM 模型，可挂载 `analysis_temp`：
+
+```yaml
+# docker-compose.yml 中 trade-app 的 volumes 增加：
+volumes:
+  - ./analysis_temp:/app/analysis_temp
+```
+
 ### 3.4 仅构建镜像、不启动 MySQL
 
 若使用外部已有 MySQL，只启动应用：
@@ -113,9 +124,9 @@ docker compose run --rm -e MYSQL_HOST=host.docker.internal -e MYSQL_PASSWORD=你
 
 | 文件 | 说明 |
 |------|------|
-| `Dockerfile` | 多阶段：Stage 1 用 Node 构建 frontend/dist；Stage 2 用 Python 复制后端与 dist，安装依赖，暴露 5050 |
+| `Dockerfile` | 多阶段：Stage 1 用 Node 构建 frontend/dist；Stage 2 用 Python 复制后端与 dist，安装依赖（含 torch、scikit-learn、shap），暴露 5050 |
 | `docker-compose.yml` | 定义服务 `trade-app`、`trade-mysql`，网络与数据卷，环境变量 |
-| `.dockerignore` | 排除 node_modules、__pycache__、.git、output 等，加快构建与减小上下文 |
+| `.dockerignore` | 排除 node_modules、__pycache__、.git、output、analysis_temp 等，加快构建与减小上下文 |
 
 ---
 
@@ -127,3 +138,4 @@ docker compose run --rm -e MYSQL_HOST=host.docker.internal -e MYSQL_PASSWORD=你
 | 前端 | `pnpm run dev` (5173)，代理 /api | 已构建进镜像，由后端直接提供 |
 | MySQL | 本机或远程 config.yaml | compose 内 MySQL + 环境变量 |
 | config | 根目录 config.yaml | 镜像内默认 + 可选挂载 + 环境变量覆盖 DB |
+| LSTM | 同机安装 torch 即可使用 /api/lstm/* | 镜像已含 PyTorch，可直接调用；模型可挂载 analysis_temp 持久化 |
