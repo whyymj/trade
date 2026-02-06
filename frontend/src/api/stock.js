@@ -143,6 +143,14 @@ export function apiLstmTrainAll(body) {
   })
 }
 
+/** 清理指定股票的训练数据（训练流水、模型版本、曲线图），使可重新训练。body: { symbols: string[] }。返回 { cleared, symbols, message } */
+export function apiLstmClearTraining(body) {
+  return request('/api/lstm/clear-training', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+  })
+}
+
 /** 获取指定股票最近一次预测记录，用于刷新页面后恢复展示。 */
 export function apiLstmLastPrediction(symbol) {
   const params = new URLSearchParams()
@@ -150,31 +158,61 @@ export function apiLstmLastPrediction(symbol) {
   return request('/api/lstm/last-prediction?' + params.toString())
 }
 
-/** 使用已保存模型预测；options: { use_fallback?, trigger_train_async? }。返回含 direction, magnitude, prob_up, source, model_health。 */
+/** 获取每只股票最近一次预测记录，用于按股票分别展示。返回 { predictions: [...] } */
+export function apiLstmLastPredictions() {
+  return request('/api/lstm/last-predictions')
+}
+
+/** 使用已保存模型预测；options: { years?: 1|2|3（默认3）, use_fallback?, trigger_train_async? }。返回含 direction, magnitude, prob_up, source, model_health。 */
 export function apiLstmPredict(symbol, options = {}) {
   const params = new URLSearchParams()
   params.set('symbol', symbol)
+  if (options.years != null) params.set('years', String(options.years))
   if (options.use_fallback) params.set('use_fallback', '1')
   if (options.trigger_train_async) params.set('trigger_train_async', '1')
   return request('/api/lstm/predict?' + params.toString())
 }
 
-/** 训练曲线图 URL（预测 vs 实际），加时间戳避免缓存。 */
-export function apiLstmPlotUrl() {
-  return API_BASE + '/api/lstm/plot?t=' + Date.now()
+/** 对全部股票执行预测。body: { use_fallback?, trigger_train_async? }。返回 { results, success_count, fail_count } */
+export function apiLstmPredictAll(body = {}) {
+  return request('/api/lstm/predict-all', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
 }
 
-/** 全部股票及其一年/二年最后训练时间。返回 { stocks: [ { symbol, displayName, last_train_1y, last_train_2y } ] } */
+/** 训练曲线图 URL（预测 vs 实际）。symbol 必填；years=1|2|3 时按该年份模型生成图；不传 years 时带 generate=1 从库读或按需生成。 */
+export function apiLstmPlotUrl(symbol, years) {
+  const params = new URLSearchParams()
+  params.set('t', String(Date.now()))
+  if (symbol) {
+    params.set('symbol', symbol)
+    if (years === 1 || years === 2 || years === 3) {
+      params.set('years', String(years))
+    } else {
+      params.set('generate', '1')
+    }
+  }
+  return API_BASE + '/api/lstm/plot?' + params.toString()
+}
+
+/** 全部股票及其最后一次训练时间。返回 { stocks: [ { symbol, displayName, last_train } ] } */
 export function apiLstmStocksTrainingStatus() {
   return request('/api/lstm/stocks-training-status')
 }
 
-/** 训练流水。query: { symbol?, limit? } */
+/** 训练流水。query: { symbol?, limit?, dedupe? }，dedupe=1 时每只股票只返回最新一条 */
 export function apiLstmTrainingRuns(query = {}) {
   const params = new URLSearchParams()
   if (query.symbol) params.set('symbol', query.symbol)
   if (query.limit != null) params.set('limit', String(query.limit))
+  if (query.dedupe) params.set('dedupe', '1')
   return request('/api/lstm/training-runs?' + (params.toString() || 'limit=50'))
+}
+
+/** 数据库去重：每只股票只保留最新一条训练流水，返回 { deleted } */
+export function apiLstmTrainingRunsDedupe() {
+  return request('/api/lstm/training-runs/dedupe', { method: 'POST' })
 }
 
 /** 模型版本列表与当前版本。 */

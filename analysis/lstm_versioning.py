@@ -43,23 +43,31 @@ def _version_id_from_dir_name(name: str) -> str:
     return name
 
 
-def list_versions(save_dir: Optional[Path | str] = None) -> list[dict[str, Any]]:
+def list_versions(
+    save_dir: Optional[Path | str] = None,
+    symbol: Optional[str] = None,
+    years: Optional[int] = None,
+) -> list[dict[str, Any]]:
     """
-    列出已保存的版本（从数据库读取，按 created_at 倒序）。
-    每项含 version_id, training_time, data_start, data_end, validation_score, path。
+    列出已保存的版本（从数据库读取）。若提供 symbol、years 则只列该股票该年份的版本。
+    每项含 version_id, symbol, years, training_time, data_start, data_end, validation_score, path。
     """
     try:
         from data.lstm_repo import list_model_versions_from_db
-        return list_model_versions_from_db(limit=MAX_VERSIONS * 2)
+        return list_model_versions_from_db(symbol=symbol, years=years, limit=MAX_VERSIONS * 2)
     except Exception:
         return []
 
 
-def get_current_version_id(save_dir: Optional[Path | str] = None) -> Optional[str]:
-    """返回当前使用的版本 ID（从数据库读取）。"""
+def get_current_version_id(
+    save_dir: Optional[Path | str] = None,
+    symbol: Optional[str] = None,
+    years: Optional[int] = None,
+) -> Optional[str]:
+    """返回当前使用的版本 ID。若提供 symbol 与 years，返回该股票该年份的当前版本。"""
     try:
         from data.lstm_repo import get_current_version_from_db
-        return get_current_version_from_db()
+        return get_current_version_from_db(symbol=symbol, years=years)
     except Exception:
         return None
 
@@ -89,40 +97,54 @@ def _get_version_from_db(version_id: str) -> Optional[tuple[Any, dict]]:
         return None
 
 
-def get_current_model_from_db(save_dir: Optional[Path | str] = None) -> Optional[tuple[Any, dict]]:
-    """从数据库加载当前版本的 state_dict 与 metadata，返回 (state_dict, metadata) 或 None。"""
-    vid = get_current_version_id(save_dir)
+def get_current_model_from_db(
+    save_dir: Optional[Path | str] = None,
+    symbol: Optional[str] = None,
+    years: Optional[int] = None,
+) -> Optional[tuple[Any, dict]]:
+    """从数据库加载当前版本的 state_dict 与 metadata。若提供 symbol、years 则加载该股票该年份的当前模型。"""
+    vid = get_current_version_id(save_dir, symbol=symbol, years=years)
     if not vid:
         return None
     return _get_version_from_db(vid)
 
 
-def set_current_version(version_id: str, save_dir: Optional[Path | str] = None) -> None:
-    """将指定版本设为当前（仅写数据库，需确保该版本已存在于 lstm_model_version）。"""
+def set_current_version(
+    version_id: str,
+    save_dir: Optional[Path | str] = None,
+    symbol: Optional[str] = None,
+    years: Optional[int] = None,
+) -> None:
+    """将指定版本设为当前。若提供 symbol、years，写入 lstm_current_version_per_symbol。"""
     try:
         from data.lstm_repo import get_model_version, set_current_version_db
         if get_model_version(version_id) is None:
             raise FileNotFoundError(f"版本不存在: {version_id}")
-        set_current_version_db(version_id)
+        set_current_version_db(version_id, symbol=(symbol or "").strip(), years=1 if years not in (1, 2, 3) else int(years))
     except FileNotFoundError:
         raise
     except Exception as e:
         raise FileNotFoundError(f"版本不存在或数据库异常: {version_id}") from e
 
 
-def _prune_versions(base: Path, keep: int = MAX_VERSIONS) -> None:
-    """保留最近 keep 个版本（默认 1），从数据库删除更旧版本。"""
-    versions = list_versions(base)
+def _prune_versions(
+    base: Path,
+    keep: int = MAX_VERSIONS,
+    symbol: Optional[str] = None,
+    years: Optional[int] = None,
+) -> None:
+    """保留该 (symbol, years) 最近 keep 个版本，从数据库删除更旧版本。"""
+    versions = list_versions(base, symbol=symbol, years=years)
     if len(versions) <= keep:
         return
     try:
         from data.lstm_repo import delete_model_version, set_current_version_db
         for v in versions[keep:]:
             delete_model_version(v["version_id"])
-        current = get_current_version_id(base)
-        remaining = list_versions(base)
+        current = get_current_version_id(base, symbol=symbol, years=years)
+        remaining = list_versions(base, symbol=symbol, years=years)
         if current and not any(r["version_id"] == current for r in remaining) and remaining:
-            set_current_version_db(remaining[0]["version_id"])
+            set_current_version_db(remaining[0]["version_id"], symbol=(symbol or "").strip(), years=years if years in (1, 2, 3) else 1)
     except Exception:
         pass
 
@@ -137,10 +159,12 @@ def save_versioned_model(
     data_end: Optional[str] = None,
     validation_score: Optional[dict[str, float] | float] = None,
     promote_to_current: bool = True,
+    symbol: str = "",
+    years: int = 1,
 ) -> str:
     """
-    将模型与元数据保存到数据库（lstm_model_version 表）。
-    若 promote_to_current=True，更新当前版本并裁剪至只保留最新 1 个版本。
+    将模型与元数据保存到数据库（lstm_model_version 表，按 symbol+years）。
+    若 promote_to_current=True，更新该 (symbol, years) 的当前版本并裁剪至只保留最新 1 个版本。
     返回 version_id。
     """
     import torch
@@ -155,6 +179,9 @@ def save_versioned_model(
     meta["data_end"] = data_end
     meta["validation_score"] = validation_score
 
+    symbol_val = (symbol or "").strip() or ""
+    years_val = 1 if years not in (1, 2, 3) else int(years)
+
     buf = io.BytesIO()
     torch.save({"state_dict": state_dict, "metadata": meta}, buf)
     model_bytes = buf.getvalue()
@@ -166,11 +193,13 @@ def save_versioned_model(
         data_end=data_end,
         metadata=meta,
         model_bytes=model_bytes,
+        symbol=symbol_val,
+        years=years_val,
     )
 
     if promote_to_current:
-        set_current_version_db(version_id)
-        _prune_versions(base, MAX_VERSIONS)
+        set_current_version_db(version_id, symbol=symbol_val, years=years_val)
+        _prune_versions(base, MAX_VERSIONS, symbol=symbol_val, years=years_val)
     return version_id
 
 

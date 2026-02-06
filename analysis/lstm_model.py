@@ -458,6 +458,8 @@ def train_and_save(
     validation_score: Optional[dict[str, float] | float] = None,
     use_versioning: bool = True,
     promote_to_current: bool = True,
+    symbol: str = "",
+    years: int = 1,
 ) -> tuple[nn.Module, dict[str, Any], dict[str, float]]:
     """
     在全部数据上训练并保存模型与元数据。
@@ -520,6 +522,8 @@ def train_and_save(
             data_end=data_end,
             validation_score=validation_score or final_metrics,
             promote_to_current=promote_to_current if use_versioning else False,
+            symbol=(symbol or "").strip(),
+            years=1 if years not in (1, 2, 3) else int(years),
         )
         metadata["version_id"] = version_id
         model.to(device)
@@ -531,8 +535,10 @@ def load_model(
     save_dir: Optional[os.PathLike | str] = None,
     device: Optional[torch.device] = None,
     version_id: Optional[str] = None,
+    symbol: Optional[str] = None,
+    years: Optional[int] = None,
 ) -> tuple[nn.Module, dict[str, Any]]:
-    """加载已保存的 LSTM 模型与元数据（从数据库 lstm_model_version 表读取）。"""
+    """加载已保存的 LSTM 模型与元数据。若提供 symbol、years 则加载该股票该年份的当前模型；否则按 version_id 或全局当前版本。"""
     _ensure_torch()
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -542,7 +548,7 @@ def load_model(
         if version_id:
             pair = _get_version_from_db(version_id)
         else:
-            pair = get_current_model_from_db(save_dir)
+            pair = get_current_model_from_db(save_dir, symbol=symbol, years=years)
         if pair is not None:
             state_dict, metadata = pair
 
@@ -641,16 +647,7 @@ def incremental_train_and_save(
         )
         model.to(device)
 
-    if get_current_version_path is not None and version_id:
-        plot_path = save_dir / "lstm_pred_vs_actual.png"
-        plot_predictions_vs_actual(
-            list(range(len(y_dir))), y_dir, last_dir_pred, y_mag, last_mag_pred, save_path=plot_path
-        )
-        version_dir = get_current_version_path(save_dir)
-        if version_dir is not None and plot_path.exists():
-            import shutil
-            shutil.copy(plot_path, version_dir / "lstm_pred_vs_actual.png")
-
+    # 拟合曲线图改存数据库，见 run_lstm_pipeline 的 do_plot 与 generate_fit_plot_for_symbol
     return {
         "version_id": version_id,
         "metrics": final_metrics,
@@ -724,15 +721,17 @@ def plot_predictions_vs_actual(
     y_true_mag: np.ndarray,
     y_pred_mag: np.ndarray,
     save_path: Optional[os.PathLike | str] = None,
-) -> Optional[str]:
+    return_bytes: bool = False,
+) -> Optional[str] | Optional[bytes]:
     """
     绘制预测 vs 实际：方向（0/1）与幅度（涨跌幅）。
-    若 save_path 给定则保存图片并返回路径。
+    save_path 给定则保存到文件并返回路径；return_bytes=True 时写入内存并返回 PNG bytes（不写文件）。
     """
     try:
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
+        from io import BytesIO
     except ImportError:
         return None
     n = len(dates)
@@ -752,6 +751,11 @@ def plot_predictions_vs_actual(
     ax2.set_title("未来5日涨跌幅：预测 vs 实际")
     plt.xlabel("样本索引")
     plt.tight_layout()
+    if return_bytes:
+        buf = BytesIO()
+        plt.savefig(buf, format="png", dpi=150)
+        plt.close()
+        return buf.getvalue()
     if save_path:
         save_path = Path(save_path)
         save_path.parent.mkdir(parents=True, exist_ok=True)
@@ -760,6 +764,86 @@ def plot_predictions_vs_actual(
         return str(save_path)
     plt.close()
     return None
+
+
+def generate_fit_plot_for_symbol(
+    symbol: str,
+    save_dir: Optional[os.PathLike | str] = None,
+    fetch_hist_fn: Optional[Any] = None,
+    get_date_range_fn: Optional[Any] = None,
+    years: Optional[int] = None,
+    return_bytes_only: bool = False,
+) -> bool | Optional[bytes]:
+    """
+    用指定模型与该股票历史数据生成「预测 vs 实际」曲线图。
+    - years=None：使用全局当前模型，get_date_range_fn() 取日期范围，生成后写入数据库，返回 True/False。
+    - years=1|2|3 且 return_bytes_only=True：使用该股票该年份的当前模型，用该版本训练日期范围取数，生成图并直接返回 bytes（不写入库）。
+    """
+    if not symbol or not fetch_hist_fn:
+        return False if not return_bytes_only else None
+    if not return_bytes_only and not get_date_range_fn:
+        return False
+    _ensure_torch()
+    import torch
+    device = torch.device("cpu")
+    save_dir = Path(save_dir or DEFAULT_MODEL_DIR)
+
+    if years is not None and years in (1, 2, 3) and return_bytes_only:
+        try:
+            model, _ = load_model(save_dir=save_dir, device=device, symbol=symbol, years=years)
+        except FileNotFoundError:
+            return None
+        try:
+            from data.lstm_repo import get_current_version_from_db, get_version_date_range
+        except ImportError:
+            return None
+        version_id = get_current_version_from_db(symbol=symbol, years=years)
+        if not version_id:
+            return None
+        date_range = get_version_date_range(version_id)
+        if not date_range:
+            return None
+        start_date, end_date = date_range
+        df = fetch_hist_fn(symbol, start_date, end_date)
+        if df is None or df.empty or len(df) < 65:
+            return None
+        X, _, _, y_dir, y_mag = build_features_from_df(df)
+        if len(X) == 0:
+            return None
+        model.eval()
+        with torch.no_grad():
+            x_t = torch.from_numpy(X).float().to(device)
+            logits, mag_pred = model(x_t)
+            pred_dir = logits.argmax(dim=1).cpu().numpy()
+            pred_mag = mag_pred.cpu().numpy().flatten()
+        plot_bytes = plot_predictions_vs_actual(
+            list(range(len(y_dir))), y_dir, pred_dir, y_mag, pred_mag, return_bytes=True
+        )
+        return plot_bytes if isinstance(plot_bytes, bytes) else None
+
+    try:
+        model, _ = load_model(save_dir=save_dir, device=device)
+    except FileNotFoundError:
+        return False
+    start_date, end_date, _ = get_date_range_fn()
+    df = fetch_hist_fn(symbol, start_date, end_date)
+    if df is None or df.empty or len(df) < 65:
+        return False
+    X, _, _, y_dir, y_mag = build_features_from_df(df)
+    if len(X) == 0:
+        return False
+    model.eval()
+    with torch.no_grad():
+        x_t = torch.from_numpy(X).float().to(device)
+        logits, mag_pred = model(x_t)
+        pred_dir = logits.argmax(dim=1).cpu().numpy()
+        pred_mag = mag_pred.cpu().numpy().flatten()
+    plot_bytes = plot_predictions_vs_actual(
+        list(range(len(y_dir))), y_dir, pred_dir, y_mag, pred_mag, return_bytes=True
+    )
+    if not isinstance(plot_bytes, bytes):
+        return False
+    return True
 
 
 def run_lstm_pipeline(
@@ -772,6 +856,7 @@ def run_lstm_pipeline(
     param_grid: Optional[dict[str, Any]] = None,
     do_post_training_validation: bool = True,
     fast_training: bool = False,
+    years: int = 1,
 ) -> dict[str, Any]:
     """
     端到端：特征构建 -> 交叉验证/超参优化 -> 训练保存 ->（可选）样本外验证，仅更优则部署 -> 可解释性 -> 可视化。
@@ -799,10 +884,14 @@ def run_lstm_pipeline(
         "n_samples": int(X.shape[0]),
         "n_features": int(X.shape[2]),
         "feature_names": feature_names,
+        "data_start": data_start,
+        "data_end": data_end,
     }
 
-    # 训练前记录当前版本，用于验证阶段对比
-    old_version_id = get_current_version_id(save_dir) if get_current_version_id else None
+    # 训练前记录该 (symbol, years) 的当前版本，用于验证阶段对比
+    sym_val = (symbol or "").strip()
+    years_val = 1 if years not in (1, 2, 3) else int(years)
+    old_version_id = get_current_version_id(save_dir, symbol=sym_val, years=years_val) if get_current_version_id else None
     promote = not do_post_training_validation
 
     validation_score: Optional[dict[str, float] | float] = None
@@ -837,6 +926,8 @@ def run_lstm_pipeline(
         data_end=data_end,
         validation_score=validation_score,
         promote_to_current=promote,
+        symbol=sym_val,
+        years=years_val,
     )
     result["metrics"] = metrics
     result["metadata"] = metadata
@@ -859,8 +950,8 @@ def run_lstm_pipeline(
                 pass
         deploy, reason = should_deploy_new_model(new_holdout_metrics, old_holdout_metrics) if old_holdout_metrics else (True, "无旧模型，直接部署")
         if deploy:
-            set_current_version(new_version_id, save_dir)
-            _prune_versions(save_dir, MAX_VERSIONS)
+            set_current_version(new_version_id, save_dir, symbol=sym_val, years=years_val)
+            _prune_versions(save_dir, MAX_VERSIONS, symbol=sym_val, years=years_val)
         else:
             remove_version(new_version_id, save_dir)
         result["validation"] = {
@@ -881,18 +972,19 @@ def run_lstm_pipeline(
 
     if do_plot:
         dates = list(range(len(y_dir)))
-        plot_path = save_dir / "lstm_pred_vs_actual.png"
         pred_dir = np.array(metadata.get("last_dir_pred", []))
         pred_mag = np.array(metadata.get("last_mag_pred", []))
         if len(pred_dir) == len(y_dir) and len(pred_mag) == len(y_mag):
-            plot_predictions_vs_actual(dates, y_dir, pred_dir, y_mag, pred_mag, save_path=plot_path)
-        # 仅当未做训练后验证或验证通过并部署时，将图复制到当前版本目录
-        if get_current_version_path is not None and (not do_post_training_validation or result.get("validation", {}).get("deployed")):
-            version_dir = get_current_version_path(save_dir)
-            if version_dir is not None and plot_path.exists():
-                import shutil
-                shutil.copy(plot_path, version_dir / "lstm_pred_vs_actual.png")
-        result["plot_path"] = str(plot_path)
+            plot_bytes = plot_predictions_vs_actual(
+                dates, y_dir, pred_dir, y_mag, pred_mag, return_bytes=True
+            )
+            if isinstance(plot_bytes, bytes) and symbol and years_val in (1, 2, 3):
+                try:
+                    from data.lstm_repo import save_lstm_plot_cache
+                    save_lstm_plot_cache(symbol, years_val, plot_bytes)
+                except Exception:
+                    pass
+            result["plot_path"] = "db" if isinstance(plot_bytes, bytes) else ""
 
     return result
 

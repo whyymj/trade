@@ -95,8 +95,9 @@ def insert_training_run(
 def list_training_runs(
     symbol: Optional[str] = None,
     limit: int = 50,
+    dedupe_by_symbol: bool = False,
 ) -> list[dict[str, Any]]:
-    """查询训练流水，按创建时间倒序。"""
+    """查询训练流水，按创建时间倒序。dedupe_by_symbol=True 时每只股票只返回最新一条。"""
     if symbol:
         sql = """
         SELECT id, version_id, symbol, training_type, trigger_type,
@@ -109,6 +110,20 @@ def list_training_runs(
         LIMIT %s
         """
         rows = fetch_all(sql, (symbol.strip(), limit))
+    elif dedupe_by_symbol:
+        sql = """
+        SELECT t.id, t.version_id, t.symbol, t.training_type, t.trigger_type,
+               t.data_start, t.data_end, t.params_json, t.metrics_json,
+               t.validation_deployed, t.validation_reason, t.holdout_metrics_json,
+               t.duration_seconds, t.created_at
+        FROM lstm_training_run t
+        INNER JOIN (
+            SELECT symbol, MAX(id) AS max_id FROM lstm_training_run GROUP BY symbol
+        ) latest ON t.symbol = latest.symbol AND t.id = latest.max_id
+        ORDER BY t.created_at DESC
+        LIMIT %s
+        """
+        rows = fetch_all(sql, (limit,))
     else:
         sql = """
         SELECT id, version_id, symbol, training_type, trigger_type,
@@ -133,6 +148,30 @@ def list_training_runs(
     return out
 
 
+def dedupe_training_runs_keep_latest() -> int:
+    """
+    数据库去重：每只股票只保留最新一条训练流水，删除同 symbol 的旧记录。
+    返回删除的行数。
+    """
+    sql_delete = """
+    DELETE t FROM lstm_training_run t
+    LEFT JOIN (
+        SELECT symbol, MAX(id) AS max_id FROM lstm_training_run GROUP BY symbol
+    ) latest ON t.symbol = latest.symbol AND t.id = latest.max_id
+    WHERE latest.max_id IS NULL
+    """
+    return execute(sql_delete) or 0
+
+
+def delete_training_runs_by_symbols(symbols: list[str]) -> int:
+    """删除指定股票的全部训练流水，返回删除的行数。"""
+    if not symbols:
+        return 0
+    placeholders = ", ".join(["%s"] * len(symbols))
+    sql = f"DELETE FROM lstm_training_run WHERE symbol IN ({placeholders})"
+    return execute(sql, tuple((s or "").strip() for s in symbols if (s or "").strip())) or 0
+
+
 # ---------- 模型版本（替代本地 versions 目录） ----------
 
 
@@ -143,22 +182,43 @@ def insert_model_version(
     data_end: Optional[str],
     metadata: Optional[dict],
     model_bytes: bytes,
+    symbol: str = "",
+    years: int = 1,
 ) -> None:
-    """将模型版本写入数据库（version_id、元数据 JSON、权重 BLOB）。"""
+    """将模型版本写入数据库（按股票+年份：version_id、symbol、years、元数据 JSON、权重 BLOB）。"""
     data_start_val = (data_start or "")[:10] if data_start else None
     data_end_val = (data_end or "")[:10] if data_end else None
+    symbol_val = (symbol or "").strip() or ""
+    years_val = 1 if years not in (1, 2, 3) else int(years)
     sql = """
-    INSERT INTO lstm_model_version (version_id, training_time, data_start, data_end, metadata_json, model_blob)
-    VALUES (%s, %s, %s, %s, %s, %s)
+    INSERT INTO lstm_model_version (version_id, symbol, years, training_time, data_start, data_end, metadata_json, model_blob)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
     """
     execute(sql, (
         (version_id or "").strip(),
+        symbol_val,
+        years_val,
         (training_time or "").strip() or None,
         data_start_val,
         data_end_val,
         _json_dumps(metadata),
         model_bytes,
     ))
+
+
+def get_model_version_symbol_years(version_id: str) -> Optional[tuple[str, int]]:
+    """从数据库读取指定版本的 symbol、years，不存在返回 None。返回 (symbol, years)。"""
+    row = fetch_one(
+        "SELECT symbol, years FROM lstm_model_version WHERE version_id = %s",
+        ((version_id or "").strip(),),
+    )
+    if not row:
+        return None
+    sym = (row.get("symbol") or "").strip()
+    y = row.get("years")
+    if y is None:
+        y = 1
+    return (sym, int(y))
 
 
 def get_model_version(version_id: str) -> Optional[dict[str, Any]]:
@@ -175,20 +235,51 @@ def get_model_version(version_id: str) -> Optional[dict[str, Any]]:
     }
 
 
-def list_model_versions_from_db(limit: int = 10) -> list[dict[str, Any]]:
-    """列出模型版本（不含 model_blob），按 created_at 倒序。"""
-    sql = """
-    SELECT version_id, training_time, data_start, data_end, metadata_json, created_at
-    FROM lstm_model_version
-    ORDER BY created_at DESC
-    LIMIT %s
-    """
-    rows = fetch_all(sql, (limit,))
+def get_version_date_range(version_id: str) -> Optional[tuple[str, str]]:
+    """返回指定版本的训练数据日期范围 (data_start, data_end)，格式 YYYY-MM-DD。不存在返回 None。"""
+    row = fetch_one(
+        "SELECT data_start, data_end FROM lstm_model_version WHERE version_id = %s",
+        ((version_id or "").strip(),),
+    )
+    if not row or (row.get("data_start") is None and row.get("data_end") is None):
+        return None
+    start = _date_to_str(row.get("data_start")) if row.get("data_start") else None
+    end = _date_to_str(row.get("data_end")) if row.get("data_end") else None
+    if not start or not end:
+        return None
+    return (start, end)
+
+
+def list_model_versions_from_db(
+    symbol: Optional[str] = None,
+    years: Optional[int] = None,
+    limit: int = 10,
+) -> list[dict[str, Any]]:
+    """列出模型版本（不含 model_blob），按 created_at 倒序。可按 symbol、years 筛选。"""
+    if symbol is not None and years is not None:
+        sql = """
+        SELECT version_id, symbol, years, training_time, data_start, data_end, metadata_json, created_at
+        FROM lstm_model_version
+        WHERE symbol = %s AND years = %s
+        ORDER BY created_at DESC
+        LIMIT %s
+        """
+        rows = fetch_all(sql, ((symbol or "").strip(), int(years), limit))
+    else:
+        sql = """
+        SELECT version_id, symbol, years, training_time, data_start, data_end, metadata_json, created_at
+        FROM lstm_model_version
+        ORDER BY created_at DESC
+        LIMIT %s
+        """
+        rows = fetch_all(sql, (limit,))
     out = []
     for r in rows:
         meta = _json_loads(r.get("metadata_json"))
         out.append({
             "version_id": r.get("version_id"),
+            "symbol": r.get("symbol"),
+            "years": r.get("years"),
             "training_time": r.get("training_time"),
             "data_start": _date_to_str(r.get("data_start")),
             "data_end": _date_to_str(r.get("data_end")),
@@ -204,22 +295,40 @@ def delete_model_version(version_id: str) -> None:
     execute("DELETE FROM lstm_model_version WHERE version_id = %s", ((version_id or "").strip(),))
 
 
-# ---------- 当前版本 ----------
+# ---------- 当前版本（按股票+年份） ----------
 
 
-def set_current_version_db(version_id: str) -> None:
-    """将当前版本写入数据库（upsert 单行）。"""
+def set_current_version_db(version_id: str, symbol: str = "", years: int = 1) -> None:
+    """将指定 (symbol, years) 的当前版本写入 lstm_current_version_per_symbol 表。"""
+    symbol_val = (symbol or "").strip() or ""
+    years_val = 1 if years not in (1, 2, 3) else int(years)
     sql = """
-    INSERT INTO lstm_current_version (id, version_id) VALUES (1, %s)
+    INSERT INTO lstm_current_version_per_symbol (symbol, years, version_id)
+    VALUES (%s, %s, %s)
     ON DUPLICATE KEY UPDATE version_id = VALUES(version_id)
     """
-    execute(sql, ((version_id or "").strip(),))
+    execute(sql, (symbol_val, years_val, (version_id or "").strip(),))
 
 
-def get_current_version_from_db() -> Optional[str]:
-    """从数据库读取当前版本号，无记录返回 None。"""
+def get_current_version_from_db(symbol: Optional[str] = None, years: Optional[int] = None) -> Optional[str]:
+    """从数据库读取当前版本号。若提供 symbol 与 years，从 lstm_current_version_per_symbol 读；否则从旧表 lstm_current_version 读（兼容）。"""
+    if symbol is not None and symbol != "" and years is not None and years in (1, 2, 3):
+        row = fetch_one(
+            "SELECT version_id FROM lstm_current_version_per_symbol WHERE symbol = %s AND years = %s",
+            ((symbol or "").strip(), int(years),),
+        )
+        return (row.get("version_id") or "").strip() or None if row else None
     row = fetch_one("SELECT version_id FROM lstm_current_version WHERE id = 1")
     return (row.get("version_id") or "").strip() or None if row else None
+
+
+def delete_current_version_for_symbols(symbols: list[str]) -> None:
+    """删除指定股票在 lstm_current_version_per_symbol 中的全部当前版本记录（清理训练数据时用）。"""
+    if not symbols:
+        return
+    placeholders = ", ".join(["%s"] * len(symbols))
+    sql = f"DELETE FROM lstm_current_version_per_symbol WHERE symbol IN ({placeholders})"
+    execute(sql, tuple((s or "").strip() for s in symbols if (s or "").strip()))
 
 
 # ---------- 预测记录 ----------
@@ -283,6 +392,20 @@ def count_predictions_since_db(since_date: str) -> int:
     return int(row["n"]) if row and row.get("n") is not None else 0
 
 
+def _row_to_prediction_dict(row: dict) -> dict[str, Any]:
+    """将预测记录行转为统一结构。"""
+    return {
+        "symbol": row.get("symbol"),
+        "predict_date": _date_to_str(row.get("predict_date")),
+        "direction": int(row.get("direction", 0)),
+        "magnitude": float(row.get("magnitude", 0)),
+        "prob_up": float(row.get("prob_up", 0.5)),
+        "prob_down": round(1.0 - float(row.get("prob_up", 0.5)), 4),
+        "direction_label": "涨" if int(row.get("direction", 0)) == 1 else "跌",
+        "source": (row.get("source") or "lstm").strip(),
+    }
+
+
 def get_last_prediction_for_symbol(symbol: str) -> Optional[dict[str, Any]]:
     """获取指定股票最近一次预测记录，用于刷新页面后恢复展示。"""
     symbol = (symbol or "").strip()
@@ -295,16 +418,94 @@ def get_last_prediction_for_symbol(symbol: str) -> Optional[dict[str, Any]]:
     )
     if not row:
         return None
-    return {
-        "symbol": row.get("symbol"),
-        "predict_date": _date_to_str(row.get("predict_date")),
-        "direction": int(row.get("direction", 0)),
-        "magnitude": float(row.get("magnitude", 0)),
-        "prob_up": float(row.get("prob_up", 0.5)),
-        "prob_down": round(1.0 - float(row.get("prob_up", 0.5)), 4),
-        "direction_label": "涨" if int(row.get("direction", 0)) == 1 else "跌",
-        "source": (row.get("source") or "lstm").strip(),
-    }
+    return _row_to_prediction_dict(row)
+
+
+def get_all_last_predictions() -> list[dict[str, Any]]:
+    """获取每只股票最近一次预测记录（用于按股票分别展示）。"""
+    sql = """
+    SELECT p.symbol, p.predict_date, p.direction, p.magnitude, p.prob_up, p.source
+    FROM lstm_prediction_log p
+    INNER JOIN (
+        SELECT symbol, MAX(predict_date) AS md FROM lstm_prediction_log GROUP BY symbol
+    ) q ON p.symbol = q.symbol AND p.predict_date = q.md
+    ORDER BY p.symbol
+    """
+    rows = fetch_all(sql, ())
+    return [_row_to_prediction_dict(dict(r)) for r in rows]
+
+
+# ---------- 拟合曲线图（按股票，存 DB） ----------
+
+
+def save_lstm_plot(symbol: str, plot_bytes: bytes) -> None:
+    """保存或更新某股票的拟合曲线图（PNG 二进制）。"""
+    symbol = (symbol or "").strip()
+    if not symbol:
+        return
+    sql = """
+    INSERT INTO lstm_plot (symbol, plot_blob) VALUES (%s, %s)
+    ON DUPLICATE KEY UPDATE plot_blob = VALUES(plot_blob)
+    """
+    execute(sql, (symbol, plot_bytes))
+
+
+def get_lstm_plot(symbol: str) -> Optional[bytes]:
+    """按股票读取拟合曲线图 PNG 二进制，不存在返回 None。"""
+    symbol = (symbol or "").strip()
+    if not symbol:
+        return None
+    row = fetch_one("SELECT plot_blob FROM lstm_plot WHERE symbol = %s", (symbol,))
+    if not row or row.get("plot_blob") is None:
+        return None
+    blob = row["plot_blob"]
+    return bytes(blob) if blob is not None else None
+
+
+def delete_lstm_plot_for_symbol(symbol: str) -> None:
+    """删除指定股票的拟合曲线图（lstm_plot 表）。"""
+    symbol = (symbol or "").strip()
+    if not symbol:
+        return
+    execute("DELETE FROM lstm_plot WHERE symbol = %s", (symbol,))
+
+
+# ---------- 拟合曲线图缓存（按股票+年份） ----------
+
+
+def save_lstm_plot_cache(symbol: str, years: int, plot_bytes: bytes) -> None:
+    """按 (symbol, years) 保存拟合曲线图缓存。years 应为 1/2/3。"""
+    symbol = (symbol or "").strip()
+    if not symbol or years not in (1, 2, 3):
+        return
+    sql = """
+    INSERT INTO lstm_plot_cache (symbol, years, plot_blob) VALUES (%s, %s, %s)
+    ON DUPLICATE KEY UPDATE plot_blob = VALUES(plot_blob), created_at = CURRENT_TIMESTAMP
+    """
+    execute(sql, (symbol, int(years), plot_bytes))
+
+
+def get_lstm_plot_cache(symbol: str, years: int) -> Optional[bytes]:
+    """按 (symbol, years) 读取拟合曲线图缓存，不存在返回 None。"""
+    symbol = (symbol or "").strip()
+    if not symbol or years not in (1, 2, 3):
+        return None
+    row = fetch_one(
+        "SELECT plot_blob FROM lstm_plot_cache WHERE symbol = %s AND years = %s",
+        (symbol, int(years),),
+    )
+    if not row or row.get("plot_blob") is None:
+        return None
+    blob = row["plot_blob"]
+    return bytes(blob) if blob is not None else None
+
+
+def delete_lstm_plot_cache_for_symbol(symbol: str) -> None:
+    """删除指定股票在 lstm_plot_cache 中所有年份的缓存（清理训练数据时用）。"""
+    symbol = (symbol or "").strip()
+    if not symbol:
+        return
+    execute("DELETE FROM lstm_plot_cache WHERE symbol = %s", (symbol,))
 
 
 # ---------- 准确性记录 ----------

@@ -82,7 +82,7 @@
   - `model_blob`（LONGBLOB：PyTorch state_dict 序列化）
 - **当前版本**：MySQL `lstm_current_version.id=1` 的 `version_id`。
 - **预测/准确性/告警等**：仍为 MySQL 表（lstm_prediction_log、lstm_accuracy_record、lstm_training_run、lstm_training_failure 等）。
-- **可选文件**：`analysis_temp/lstm/lstm_pred_vs_actual.png` 仅用于「预测 vs 实际」曲线图展示，可不持久化。
+- **拟合曲线图**：存于 MySQL 表 `lstm_plot`（symbol + plot_blob），按股票保存 PNG，不再写本地文件。
 
 ---
 
@@ -213,7 +213,7 @@ lstm:
 |------|------|------|
 | POST | `/api/lstm/train` | 训练；Body: symbol, start?, end?, do_cv_tune?, do_shap?, do_plot?, fast_training? |
 | GET  | `/api/lstm/predict` | 预测；Query: symbol, use_fallback?, trigger_train_async? |
-| GET  | `/api/lstm/plot` | 当前版本预测 vs 实际图（PNG） |
+| GET  | `/api/lstm/plot` | 按股票从数据库返回拟合曲线图（PNG）。Query: symbol（必填）, generate=1 按需生成 |
 | GET  | `/api/lstm/training-runs` | 训练流水；Query: symbol?, limit? |
 | GET  | `/api/lstm/versions` | 版本列表与当前版本 |
 | POST | `/api/lstm/rollback` | 回滚；Body: version_id |
@@ -231,6 +231,14 @@ lstm:
 
 - **页面**：`/lstm`（LSTMView.vue），三个 Tab：**训练与预测**、**训练流水与版本**、**监控与告警**。
 - **能力**：训练参数（含快速训练）、训练结果与样本外验证、预测（含回退与异步触发）、训练流水查询、版本列表与回滚、更新准确性、检查/执行触发、监控状态、性能衰减检测、告警查看与发送。
+
+### 6.1 如何查看训练拟合曲线与预测走势
+
+- **训练拟合曲线（预测 vs 实际）**  
+  在「训练与预测」Tab 底部有卡片 **「训练拟合曲线（按股票，预测 vs 实际）」**。训练时勾选 **「曲线图」** 会生成图并**写入数据库**（表 `lstm_plot`），每股票一图。接口：`GET /api/lstm/plot?symbol=xxx` 从库中读取 PNG；无图时带 `generate=1` 可按需用当前模型生成并入库。
+
+- **预测走势（当前预测结果）**  
+  同一 Tab 中的 **「预测结果（按股票）」** 表格即预测走势的汇总：每行一只股票，展示 **方向**（涨/跌）、**预测涨跌幅**、**上涨/下跌概率**、**来源**（lstm/arima/technical）。执行「预测全部」或单只「预测」后，该表格会更新；刷新页面后会从接口恢复各股票最近一次预测结果。
 
 ---
 
