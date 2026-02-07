@@ -331,6 +331,33 @@ def delete_current_version_for_symbols(symbols: list[str]) -> None:
     execute(sql, tuple((s or "").strip() for s in symbols if (s or "").strip()))
 
 
+def get_trained_years_per_symbol(symbols: Optional[list[str]] = None) -> dict[str, list[int]]:
+    """返回每个 symbol 已训练年份列表，如 {"600519": [1, 2, 3], "000001": [1, 2]}。用于区分股票+年份是否训练完毕。"""
+    if symbols:
+        syms = [(s or "").strip() for s in symbols if (s or "").strip()]
+        if not syms:
+            return {}
+        placeholders = ", ".join(["%s"] * len(syms))
+        sql = f"SELECT symbol, years FROM lstm_current_version_per_symbol WHERE symbol IN ({placeholders})"
+        rows = fetch_all(sql, tuple(syms))
+    else:
+        sql = "SELECT symbol, years FROM lstm_current_version_per_symbol"
+        rows = fetch_all(sql, ())
+    out: dict[str, list[int]] = {}
+    for r in rows:
+        sym = (r.get("symbol") or "").strip()
+        y = r.get("years")
+        if not sym or y not in (1, 2, 3):
+            continue
+        if sym not in out:
+            out[sym] = []
+        if y not in out[sym]:
+            out[sym].append(y)
+    for sym in out:
+        out[sym].sort()
+    return out
+
+
 # ---------- 预测记录 ----------
 
 
@@ -342,23 +369,30 @@ def insert_prediction_log(
     prob_up: float,
     model_version_id: Optional[str] = None,
     source: str = "lstm",
+    years: int = 1,
+    magnitude_5: Optional[list[float]] = None,
 ) -> None:
-    """写入预测记录，同 (symbol, predict_date) 则 REPLACE。"""
+    """写入预测记录，同 (symbol, predict_date, years) 则 REPLACE。years 为 1/2/3 年模型。magnitude_5 为 5 日逐日涨跌幅。"""
+    import json
     predict_date = _norm_date(predict_date) or (predict_date or "")[:10]
+    years_val = 1 if years not in (1, 2, 3) else int(years)
+    mag5_json = json.dumps(magnitude_5) if magnitude_5 is not None and len(magnitude_5) == 5 else None
     sql = """
-    INSERT INTO lstm_prediction_log (symbol, predict_date, direction, magnitude, prob_up, model_version_id, source)
-    VALUES (%s, %s, %s, %s, %s, %s, %s)
+    INSERT INTO lstm_prediction_log (symbol, predict_date, years, direction, magnitude, prob_up, model_version_id, source, magnitude_5)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
     ON DUPLICATE KEY UPDATE direction = VALUES(direction), magnitude = VALUES(magnitude), prob_up = VALUES(prob_up),
-    model_version_id = VALUES(model_version_id), source = VALUES(source)
+    model_version_id = VALUES(model_version_id), source = VALUES(source), magnitude_5 = VALUES(magnitude_5)
     """
     execute(sql, (
         (symbol or "").strip(),
         predict_date,
+        years_val,
         int(direction),
         float(magnitude),
         float(prob_up),
         (model_version_id or "").strip() or None,
         (source or "lstm").strip()[:16],
+        mag5_json,
     ))
 
 
@@ -394,11 +428,22 @@ def count_predictions_since_db(since_date: str) -> int:
 
 def _row_to_prediction_dict(row: dict) -> dict[str, Any]:
     """将预测记录行转为统一结构。"""
+    import json
+    mag5 = row.get("magnitude_5")
+    if mag5 is not None and isinstance(mag5, str):
+        try:
+            mag5 = json.loads(mag5)
+        except Exception:
+            mag5 = None
+    if mag5 is not None and not isinstance(mag5, list):
+        mag5 = None
     return {
         "symbol": row.get("symbol"),
+        "years": int(row.get("years", 1)) if row.get("years") is not None else 1,
         "predict_date": _date_to_str(row.get("predict_date")),
         "direction": int(row.get("direction", 0)),
         "magnitude": float(row.get("magnitude", 0)),
+        "magnitude_5": mag5,
         "prob_up": float(row.get("prob_up", 0.5)),
         "prob_down": round(1.0 - float(row.get("prob_up", 0.5)), 4),
         "direction_label": "涨" if int(row.get("direction", 0)) == 1 else "跌",
@@ -407,105 +452,51 @@ def _row_to_prediction_dict(row: dict) -> dict[str, Any]:
 
 
 def get_last_prediction_for_symbol(symbol: str) -> Optional[dict[str, Any]]:
-    """获取指定股票最近一次预测记录，用于刷新页面后恢复展示。"""
+    """获取指定股票最近一次预测记录（任一年份），用于兼容。"""
     symbol = (symbol or "").strip()
     if not symbol:
         return None
     row = fetch_one(
-        "SELECT symbol, predict_date, direction, magnitude, prob_up, model_version_id, source "
-        "FROM lstm_prediction_log WHERE symbol = %s ORDER BY predict_date DESC LIMIT 1",
+        "SELECT symbol, predict_date, years, direction, magnitude, prob_up, model_version_id, source, magnitude_5 "
+        "FROM lstm_prediction_log WHERE symbol = %s ORDER BY predict_date DESC, years DESC LIMIT 1",
         (symbol,),
     )
     if not row:
         return None
-    return _row_to_prediction_dict(row)
+    return _row_to_prediction_dict(dict(row))
+
+
+def get_last_prediction_for_symbol_years(symbol: str, years: int) -> Optional[dict[str, Any]]:
+    """获取指定股票、指定年份（1/2/3年）模型的最近一次预测记录。"""
+    symbol = (symbol or "").strip()
+    years = 1 if years not in (1, 2, 3) else int(years)
+    if not symbol:
+        return None
+    row = fetch_one(
+        "SELECT symbol, predict_date, years, direction, magnitude, prob_up, model_version_id, source, magnitude_5 "
+        "FROM lstm_prediction_log WHERE symbol = %s AND years = %s ORDER BY predict_date DESC LIMIT 1",
+        (symbol, years),
+    )
+    if not row:
+        return None
+    return _row_to_prediction_dict(dict(row))
 
 
 def get_all_last_predictions() -> list[dict[str, Any]]:
-    """获取每只股票最近一次预测记录（用于按股票分别展示）。"""
+    """获取每只股票每个年份（1/2/3年）最近一次预测记录，用于按股票+年份分别展示。"""
     sql = """
-    SELECT p.symbol, p.predict_date, p.direction, p.magnitude, p.prob_up, p.source
+    SELECT p.symbol, p.years, p.predict_date, p.direction, p.magnitude, p.prob_up, p.source, p.magnitude_5
     FROM lstm_prediction_log p
     INNER JOIN (
-        SELECT symbol, MAX(predict_date) AS md FROM lstm_prediction_log GROUP BY symbol
-    ) q ON p.symbol = q.symbol AND p.predict_date = q.md
-    ORDER BY p.symbol
+        SELECT symbol, years, MAX(predict_date) AS md FROM lstm_prediction_log GROUP BY symbol, years
+    ) q ON p.symbol = q.symbol AND p.years = q.years AND p.predict_date = q.md
+    ORDER BY p.symbol, p.years
     """
-    rows = fetch_all(sql, ())
+    try:
+        rows = fetch_all(sql, ())
+    except Exception:
+        return []
     return [_row_to_prediction_dict(dict(r)) for r in rows]
-
-
-# ---------- 拟合曲线图（按股票，存 DB） ----------
-
-
-def save_lstm_plot(symbol: str, plot_bytes: bytes) -> None:
-    """保存或更新某股票的拟合曲线图（PNG 二进制）。"""
-    symbol = (symbol or "").strip()
-    if not symbol:
-        return
-    sql = """
-    INSERT INTO lstm_plot (symbol, plot_blob) VALUES (%s, %s)
-    ON DUPLICATE KEY UPDATE plot_blob = VALUES(plot_blob)
-    """
-    execute(sql, (symbol, plot_bytes))
-
-
-def get_lstm_plot(symbol: str) -> Optional[bytes]:
-    """按股票读取拟合曲线图 PNG 二进制，不存在返回 None。"""
-    symbol = (symbol or "").strip()
-    if not symbol:
-        return None
-    row = fetch_one("SELECT plot_blob FROM lstm_plot WHERE symbol = %s", (symbol,))
-    if not row or row.get("plot_blob") is None:
-        return None
-    blob = row["plot_blob"]
-    return bytes(blob) if blob is not None else None
-
-
-def delete_lstm_plot_for_symbol(symbol: str) -> None:
-    """删除指定股票的拟合曲线图（lstm_plot 表）。"""
-    symbol = (symbol or "").strip()
-    if not symbol:
-        return
-    execute("DELETE FROM lstm_plot WHERE symbol = %s", (symbol,))
-
-
-# ---------- 拟合曲线图缓存（按股票+年份） ----------
-
-
-def save_lstm_plot_cache(symbol: str, years: int, plot_bytes: bytes) -> None:
-    """按 (symbol, years) 保存拟合曲线图缓存。years 应为 1/2/3。"""
-    symbol = (symbol or "").strip()
-    if not symbol or years not in (1, 2, 3):
-        return
-    sql = """
-    INSERT INTO lstm_plot_cache (symbol, years, plot_blob) VALUES (%s, %s, %s)
-    ON DUPLICATE KEY UPDATE plot_blob = VALUES(plot_blob), created_at = CURRENT_TIMESTAMP
-    """
-    execute(sql, (symbol, int(years), plot_bytes))
-
-
-def get_lstm_plot_cache(symbol: str, years: int) -> Optional[bytes]:
-    """按 (symbol, years) 读取拟合曲线图缓存，不存在返回 None。"""
-    symbol = (symbol or "").strip()
-    if not symbol or years not in (1, 2, 3):
-        return None
-    row = fetch_one(
-        "SELECT plot_blob FROM lstm_plot_cache WHERE symbol = %s AND years = %s",
-        (symbol, int(years),),
-    )
-    if not row or row.get("plot_blob") is None:
-        return None
-    blob = row["plot_blob"]
-    return bytes(blob) if blob is not None else None
-
-
-def delete_lstm_plot_cache_for_symbol(symbol: str) -> None:
-    """删除指定股票在 lstm_plot_cache 中所有年份的缓存（清理训练数据时用）。"""
-    symbol = (symbol or "").strip()
-    if not symbol:
-        return
-    execute("DELETE FROM lstm_plot_cache WHERE symbol = %s", (symbol,))
 
 
 # ---------- 准确性记录 ----------

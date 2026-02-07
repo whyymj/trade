@@ -772,5 +772,4377 @@
     "prob_up": 0.1974,
     "model_version_id": "20260206_095723",
     "recorded_at": "2026-02-06T10:29:14.244917"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.03114,
+    "prob_up": 0.563,
+    "model_version_id": "20260206_093212",
+    "recorded_at": "2026-02-06T11:12:13.368131"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": 0.033429,
+    "prob_up": 0.231,
+    "model_version_id": "20260206_093332",
+    "recorded_at": "2026-02-06T11:12:13.410344"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.133288,
+    "prob_up": 0.9619,
+    "model_version_id": "20260206_095210",
+    "recorded_at": "2026-02-06T11:12:13.468043"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.027847,
+    "prob_up": 0.1974,
+    "model_version_id": "20260206_095723",
+    "recorded_at": "2026-02-06T11:12:13.513689"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.043447,
+    "prob_up": 0.195,
+    "model_version_id": "20260206_103442",
+    "recorded_at": "2026-02-06T11:12:13.564756"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.04344654828310013,
+    "prob_up": 0.19498573243618011,
+    "model_version_id": "20260206_103442",
+    "recorded_at": "2026-02-06T11:12:17.065499"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.03114,
+    "prob_up": 0.563,
+    "model_version_id": "20260206_093212",
+    "recorded_at": "2026-02-06T11:25:37.917793"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": 0.033429,
+    "prob_up": 0.231,
+    "model_version_id": "20260206_093332",
+    "recorded_at": "2026-02-06T11:25:37.976155"
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.016587,
+    "prob_up": 0.5245,
+    "model_version_id": "20260206_112433",
+    "recorded_at": "2026-02-06T11:25:38.025088"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.133288,
+    "prob_up": 0.9619,
+    "model_version_id": "20260206_095210",
+    "recorded_at": "2026-02-06T11:25:38.069078"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.027847,
+    "prob_up": 0.1974,
+    "model_version_id": "20260206_095723",
+    "recorded_at": "2026-02-06T11:25:38.104244"
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.020321,
+    "prob_up": 0.3412,
+    "model_version_id": "20260206_112413",
+    "recorded_at": "2026-02-06T11:25:38.140474"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.043447,
+    "prob_up": 0.195,
+    "model_version_id": "20260206_103442",
+    "recorded_at": "2026-02-06T11:25:38.179665"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.012331,
+    "prob_up": 0.4417,
+    "model_version_id": "20260206_092945",
+    "recorded_at": "2026-02-06T11:25:45.254917"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": 0.027841,
+    "prob_up": 0.3951,
+    "model_version_id": "20260206_093308",
+    "recorded_at": "2026-02-06T11:25:45.294677"
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.020262,
+    "prob_up": 0.0597,
+    "model_version_id": "20260206_093558",
+    "recorded_at": "2026-02-06T11:25:45.344310"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.083795,
+    "prob_up": 0.7713,
+    "model_version_id": "20260206_094936",
+    "recorded_at": "2026-02-06T11:25:45.390369"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": 0.007262,
+    "prob_up": 0.3818,
+    "model_version_id": "20260206_095452",
+    "recorded_at": "2026-02-06T11:25:45.432805"
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.035179,
+    "prob_up": 0.1611,
+    "model_version_id": "20260206_112110",
+    "recorded_at": "2026-02-06T11:25:45.477303"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.032629,
+    "prob_up": 0.5459,
+    "model_version_id": "20260206_103217",
+    "recorded_at": "2026-02-06T11:25:45.523584"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.03114,
+    "prob_up": 0.563,
+    "model_version_id": "20260206_093212",
+    "recorded_at": "2026-02-06T11:29:04.005643"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": 0.033429,
+    "prob_up": 0.231,
+    "model_version_id": "20260206_093332",
+    "recorded_at": "2026-02-06T11:29:04.050646"
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.016587,
+    "prob_up": 0.5245,
+    "model_version_id": "20260206_112433",
+    "recorded_at": "2026-02-06T11:29:04.093275"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.133288,
+    "prob_up": 0.9619,
+    "model_version_id": "20260206_095210",
+    "recorded_at": "2026-02-06T11:29:04.133765"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.027847,
+    "prob_up": 0.1974,
+    "model_version_id": "20260206_095723",
+    "recorded_at": "2026-02-06T11:29:04.172628"
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.020321,
+    "prob_up": 0.3412,
+    "model_version_id": "20260206_112413",
+    "recorded_at": "2026-02-06T11:29:04.217911"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.043447,
+    "prob_up": 0.195,
+    "model_version_id": "20260206_103442",
+    "recorded_at": "2026-02-06T11:29:04.256239"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.056195,
+    "prob_up": 0.6417,
+    "model_version_id": "20260206_092809",
+    "recorded_at": "2026-02-06T11:34:32.260834"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.012331,
+    "prob_up": 0.4417,
+    "model_version_id": "20260206_092945",
+    "recorded_at": "2026-02-06T11:34:32.295852"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.03114,
+    "prob_up": 0.563,
+    "model_version_id": "20260206_093212",
+    "recorded_at": "2026-02-06T11:34:32.330734"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": 0.027841,
+    "prob_up": 0.3951,
+    "model_version_id": "20260206_093245",
+    "recorded_at": "2026-02-06T11:34:32.367355"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": 0.027841,
+    "prob_up": 0.3951,
+    "model_version_id": "20260206_093308",
+    "recorded_at": "2026-02-06T11:34:32.395366"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": 0.033429,
+    "prob_up": 0.231,
+    "model_version_id": "20260206_093332",
+    "recorded_at": "2026-02-06T11:34:32.416365"
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.020648,
+    "prob_up": 0.571,
+    "model_version_id": "20260206_093415",
+    "recorded_at": "2026-02-06T11:34:32.450260"
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.020262,
+    "prob_up": 0.0597,
+    "model_version_id": "20260206_093558",
+    "recorded_at": "2026-02-06T11:34:32.480380"
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.016587,
+    "prob_up": 0.5245,
+    "model_version_id": "20260206_112433",
+    "recorded_at": "2026-02-06T11:34:32.511349"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.036978,
+    "prob_up": 0.5438,
+    "model_version_id": "20260206_094801",
+    "recorded_at": "2026-02-06T11:34:32.550967"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.083795,
+    "prob_up": 0.7713,
+    "model_version_id": "20260206_094936",
+    "recorded_at": "2026-02-06T11:34:32.581762"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.133288,
+    "prob_up": 0.9619,
+    "model_version_id": "20260206_095210",
+    "recorded_at": "2026-02-06T11:34:32.611575"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": 0.009696,
+    "prob_up": 0.2955,
+    "model_version_id": "20260206_095305",
+    "recorded_at": "2026-02-06T11:34:32.648535"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": 0.007262,
+    "prob_up": 0.3818,
+    "model_version_id": "20260206_095452",
+    "recorded_at": "2026-02-06T11:34:32.675716"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.027847,
+    "prob_up": 0.1974,
+    "model_version_id": "20260206_095723",
+    "recorded_at": "2026-02-06T11:34:32.703132"
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.047527,
+    "prob_up": 0.0364,
+    "model_version_id": "20260206_102200",
+    "recorded_at": "2026-02-06T11:34:32.734125"
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.035179,
+    "prob_up": 0.1611,
+    "model_version_id": "20260206_112110",
+    "recorded_at": "2026-02-06T11:34:32.756660"
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.020321,
+    "prob_up": 0.3412,
+    "model_version_id": "20260206_112413",
+    "recorded_at": "2026-02-06T11:34:32.782619"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": 0.015957,
+    "prob_up": 0.492,
+    "model_version_id": "20260206_103048",
+    "recorded_at": "2026-02-06T11:34:32.816940"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.032629,
+    "prob_up": 0.5459,
+    "model_version_id": "20260206_103217",
+    "recorded_at": "2026-02-06T11:34:32.847472"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.043447,
+    "prob_up": 0.195,
+    "model_version_id": "20260206_103442",
+    "recorded_at": "2026-02-06T11:34:32.875525"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.056195,
+    "prob_up": 0.6417,
+    "model_version_id": "20260206_092809",
+    "recorded_at": "2026-02-06T11:37:53.923406"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.012331,
+    "prob_up": 0.4417,
+    "model_version_id": "20260206_092945",
+    "recorded_at": "2026-02-06T11:37:53.967916"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.03114,
+    "prob_up": 0.563,
+    "model_version_id": "20260206_093212",
+    "recorded_at": "2026-02-06T11:37:54.009139"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": 0.027841,
+    "prob_up": 0.3951,
+    "model_version_id": "20260206_093245",
+    "recorded_at": "2026-02-06T11:37:54.051540"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": 0.027841,
+    "prob_up": 0.3951,
+    "model_version_id": "20260206_093308",
+    "recorded_at": "2026-02-06T11:37:54.076301"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": 0.033429,
+    "prob_up": 0.231,
+    "model_version_id": "20260206_093332",
+    "recorded_at": "2026-02-06T11:37:54.123199"
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.020648,
+    "prob_up": 0.571,
+    "model_version_id": "20260206_093415",
+    "recorded_at": "2026-02-06T11:37:54.159727"
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.020262,
+    "prob_up": 0.0597,
+    "model_version_id": "20260206_093558",
+    "recorded_at": "2026-02-06T11:37:54.185008"
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.016587,
+    "prob_up": 0.5245,
+    "model_version_id": "20260206_112433",
+    "recorded_at": "2026-02-06T11:37:54.209918"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.036978,
+    "prob_up": 0.5438,
+    "model_version_id": "20260206_094801",
+    "recorded_at": "2026-02-06T11:37:54.505177"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.083795,
+    "prob_up": 0.7713,
+    "model_version_id": "20260206_094936",
+    "recorded_at": "2026-02-06T11:37:54.541398"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.133288,
+    "prob_up": 0.9619,
+    "model_version_id": "20260206_095210",
+    "recorded_at": "2026-02-06T11:37:54.573174"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": 0.009696,
+    "prob_up": 0.2955,
+    "model_version_id": "20260206_095305",
+    "recorded_at": "2026-02-06T11:37:54.606502"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": 0.007262,
+    "prob_up": 0.3818,
+    "model_version_id": "20260206_095452",
+    "recorded_at": "2026-02-06T11:37:54.637366"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.027847,
+    "prob_up": 0.1974,
+    "model_version_id": "20260206_095723",
+    "recorded_at": "2026-02-06T11:37:54.676824"
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.047527,
+    "prob_up": 0.0364,
+    "model_version_id": "20260206_102200",
+    "recorded_at": "2026-02-06T11:37:54.714212"
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.035179,
+    "prob_up": 0.1611,
+    "model_version_id": "20260206_112110",
+    "recorded_at": "2026-02-06T11:37:54.747262"
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.020321,
+    "prob_up": 0.3412,
+    "model_version_id": "20260206_112413",
+    "recorded_at": "2026-02-06T11:37:54.779015"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": 0.015957,
+    "prob_up": 0.492,
+    "model_version_id": "20260206_103048",
+    "recorded_at": "2026-02-06T11:37:54.816973"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.032629,
+    "prob_up": 0.5459,
+    "model_version_id": "20260206_103217",
+    "recorded_at": "2026-02-06T11:37:54.845402"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.043447,
+    "prob_up": 0.195,
+    "model_version_id": "20260206_103442",
+    "recorded_at": "2026-02-06T11:37:54.871939"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.056195,
+    "prob_up": 0.6417,
+    "model_version_id": "20260206_092809",
+    "recorded_at": "2026-02-06T11:41:57.772586"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.012331,
+    "prob_up": 0.4417,
+    "model_version_id": "20260206_092945",
+    "recorded_at": "2026-02-06T11:41:57.818302"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.03114,
+    "prob_up": 0.563,
+    "model_version_id": "20260206_093212",
+    "recorded_at": "2026-02-06T11:41:57.851464"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": 0.027841,
+    "prob_up": 0.3951,
+    "model_version_id": "20260206_093245",
+    "recorded_at": "2026-02-06T11:41:57.883859"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": 0.027841,
+    "prob_up": 0.3951,
+    "model_version_id": "20260206_093308",
+    "recorded_at": "2026-02-06T11:41:57.907576"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": 0.033429,
+    "prob_up": 0.231,
+    "model_version_id": "20260206_093332",
+    "recorded_at": "2026-02-06T11:41:57.931765"
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.020648,
+    "prob_up": 0.571,
+    "model_version_id": "20260206_093415",
+    "recorded_at": "2026-02-06T11:41:57.965809"
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.020262,
+    "prob_up": 0.0597,
+    "model_version_id": "20260206_093558",
+    "recorded_at": "2026-02-06T11:41:57.995612"
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.016587,
+    "prob_up": 0.5245,
+    "model_version_id": "20260206_112433",
+    "recorded_at": "2026-02-06T11:41:58.029704"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.036978,
+    "prob_up": 0.5438,
+    "model_version_id": "20260206_094801",
+    "recorded_at": "2026-02-06T11:41:58.065138"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.083795,
+    "prob_up": 0.7713,
+    "model_version_id": "20260206_094936",
+    "recorded_at": "2026-02-06T11:41:58.095859"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.133288,
+    "prob_up": 0.9619,
+    "model_version_id": "20260206_095210",
+    "recorded_at": "2026-02-06T11:41:58.126617"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": 0.009696,
+    "prob_up": 0.2955,
+    "model_version_id": "20260206_095305",
+    "recorded_at": "2026-02-06T11:41:58.161449"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": 0.007262,
+    "prob_up": 0.3818,
+    "model_version_id": "20260206_095452",
+    "recorded_at": "2026-02-06T11:41:58.188007"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.027847,
+    "prob_up": 0.1974,
+    "model_version_id": "20260206_095723",
+    "recorded_at": "2026-02-06T11:41:58.213681"
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.047527,
+    "prob_up": 0.0364,
+    "model_version_id": "20260206_102200",
+    "recorded_at": "2026-02-06T11:41:58.250749"
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.035179,
+    "prob_up": 0.1611,
+    "model_version_id": "20260206_112110",
+    "recorded_at": "2026-02-06T11:41:58.281055"
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.020321,
+    "prob_up": 0.3412,
+    "model_version_id": "20260206_112413",
+    "recorded_at": "2026-02-06T11:41:58.313418"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": 0.015957,
+    "prob_up": 0.492,
+    "model_version_id": "20260206_103048",
+    "recorded_at": "2026-02-06T11:41:58.348240"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.032629,
+    "prob_up": 0.5459,
+    "model_version_id": "20260206_103217",
+    "recorded_at": "2026-02-06T11:41:58.378015"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.043447,
+    "prob_up": 0.195,
+    "model_version_id": "20260206_103442",
+    "recorded_at": "2026-02-06T11:41:58.408340"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.056195,
+    "prob_up": 0.6417,
+    "model_version_id": "20260206_114852",
+    "recorded_at": "2026-02-06T13:28:43.036974"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.012331,
+    "prob_up": 0.4417,
+    "model_version_id": "20260206_115029",
+    "recorded_at": "2026-02-06T13:28:43.076931"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": 0.027841,
+    "prob_up": 0.3951,
+    "model_version_id": "20260206_093245",
+    "recorded_at": "2026-02-06T13:28:43.114161"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": 0.027841,
+    "prob_up": 0.3951,
+    "model_version_id": "20260206_093308",
+    "recorded_at": "2026-02-06T13:28:43.146699"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": 0.033429,
+    "prob_up": 0.231,
+    "model_version_id": "20260206_093332",
+    "recorded_at": "2026-02-06T13:28:43.175905"
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.020648,
+    "prob_up": 0.571,
+    "model_version_id": "20260206_093415",
+    "recorded_at": "2026-02-06T13:28:43.215830"
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.020262,
+    "prob_up": 0.0597,
+    "model_version_id": "20260206_093558",
+    "recorded_at": "2026-02-06T13:28:43.254456"
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.016587,
+    "prob_up": 0.5245,
+    "model_version_id": "20260206_112433",
+    "recorded_at": "2026-02-06T13:28:43.286179"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.036978,
+    "prob_up": 0.5438,
+    "model_version_id": "20260206_094801",
+    "recorded_at": "2026-02-06T13:28:43.323738"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.083795,
+    "prob_up": 0.7713,
+    "model_version_id": "20260206_094936",
+    "recorded_at": "2026-02-06T13:28:43.357838"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.133288,
+    "prob_up": 0.9619,
+    "model_version_id": "20260206_095210",
+    "recorded_at": "2026-02-06T13:28:43.394350"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": 0.009696,
+    "prob_up": 0.2955,
+    "model_version_id": "20260206_095305",
+    "recorded_at": "2026-02-06T13:28:43.427876"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": 0.007262,
+    "prob_up": 0.3818,
+    "model_version_id": "20260206_095452",
+    "recorded_at": "2026-02-06T13:28:43.454861"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.027847,
+    "prob_up": 0.1974,
+    "model_version_id": "20260206_095723",
+    "recorded_at": "2026-02-06T13:28:43.485759"
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.047527,
+    "prob_up": 0.0364,
+    "model_version_id": "20260206_102200",
+    "recorded_at": "2026-02-06T13:28:43.523640"
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.035179,
+    "prob_up": 0.1611,
+    "model_version_id": "20260206_112110",
+    "recorded_at": "2026-02-06T13:28:43.556047"
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.020321,
+    "prob_up": 0.3412,
+    "model_version_id": "20260206_112413",
+    "recorded_at": "2026-02-06T13:28:43.586489"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": 0.015957,
+    "prob_up": 0.492,
+    "model_version_id": "20260206_103048",
+    "recorded_at": "2026-02-06T13:28:43.621302"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "direction": 1,
+    "magnitude": 0.032629,
+    "prob_up": 0.5459,
+    "model_version_id": "20260206_103217",
+    "recorded_at": "2026-02-06T13:28:43.654530"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "direction": 0,
+    "magnitude": -0.043447,
+    "prob_up": 0.195,
+    "model_version_id": "20260206_103442",
+    "recorded_at": "2026-02-06T13:28:43.685568"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 1,
+    "magnitude": 0.056195,
+    "prob_up": 0.6417,
+    "model_version_id": "20260206_114852",
+    "recorded_at": "2026-02-06T13:56:51.812865"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 0,
+    "magnitude": -0.012331,
+    "prob_up": 0.4417,
+    "model_version_id": "20260206_115029",
+    "recorded_at": "2026-02-06T13:56:51.873034"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 1,
+    "magnitude": 0.03114,
+    "prob_up": 0.563,
+    "model_version_id": "20260206_133348",
+    "recorded_at": "2026-02-06T13:56:51.916923"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 0,
+    "magnitude": 0.027841,
+    "prob_up": 0.3951,
+    "model_version_id": "20260206_093245",
+    "recorded_at": "2026-02-06T13:56:51.953861"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 0,
+    "magnitude": 0.027841,
+    "prob_up": 0.3951,
+    "model_version_id": "20260206_093308",
+    "recorded_at": "2026-02-06T13:56:51.981743"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 0,
+    "magnitude": 0.033429,
+    "prob_up": 0.231,
+    "model_version_id": "20260206_093332",
+    "recorded_at": "2026-02-06T13:56:52.005140"
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 1,
+    "magnitude": 0.020648,
+    "prob_up": 0.571,
+    "model_version_id": "20260206_093415",
+    "recorded_at": "2026-02-06T13:56:52.037118"
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 0,
+    "magnitude": -0.020262,
+    "prob_up": 0.0597,
+    "model_version_id": "20260206_093558",
+    "recorded_at": "2026-02-06T13:56:52.069703"
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 1,
+    "magnitude": 0.016587,
+    "prob_up": 0.5245,
+    "model_version_id": "20260206_112433",
+    "recorded_at": "2026-02-06T13:56:52.100130"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 1,
+    "magnitude": 0.036978,
+    "prob_up": 0.5438,
+    "model_version_id": "20260206_094801",
+    "recorded_at": "2026-02-06T13:56:52.130902"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 1,
+    "magnitude": 0.083795,
+    "prob_up": 0.7713,
+    "model_version_id": "20260206_094936",
+    "recorded_at": "2026-02-06T13:56:52.162469"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 1,
+    "magnitude": 0.133288,
+    "prob_up": 0.9619,
+    "model_version_id": "20260206_095210",
+    "recorded_at": "2026-02-06T13:56:52.192829"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 0,
+    "magnitude": 0.009696,
+    "prob_up": 0.2955,
+    "model_version_id": "20260206_095305",
+    "recorded_at": "2026-02-06T13:56:52.226824"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 0,
+    "magnitude": 0.007262,
+    "prob_up": 0.3818,
+    "model_version_id": "20260206_095452",
+    "recorded_at": "2026-02-06T13:56:52.254144"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 0,
+    "magnitude": -0.027847,
+    "prob_up": 0.1974,
+    "model_version_id": "20260206_095723",
+    "recorded_at": "2026-02-06T13:56:52.282983"
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.047527,
+    "prob_up": 0.0364,
+    "model_version_id": "20260206_102200",
+    "recorded_at": "2026-02-06T13:56:52.315755"
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 0,
+    "magnitude": -0.035179,
+    "prob_up": 0.1611,
+    "model_version_id": "20260206_112110",
+    "recorded_at": "2026-02-06T13:56:52.345345"
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 0,
+    "magnitude": -0.020321,
+    "prob_up": 0.3412,
+    "model_version_id": "20260206_112413",
+    "recorded_at": "2026-02-06T13:56:52.375916"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 0,
+    "magnitude": 0.015957,
+    "prob_up": 0.492,
+    "model_version_id": "20260206_103048",
+    "recorded_at": "2026-02-06T13:56:52.409010"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 1,
+    "magnitude": 0.032629,
+    "prob_up": 0.5459,
+    "model_version_id": "20260206_103217",
+    "recorded_at": "2026-02-06T13:56:52.436447"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 0,
+    "magnitude": -0.043447,
+    "prob_up": 0.195,
+    "model_version_id": "20260206_103442",
+    "recorded_at": "2026-02-06T13:56:52.466161"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 1,
+    "magnitude": 0.043346,
+    "prob_up": 0.8869,
+    "model_version_id": "20260206_155210",
+    "recorded_at": "2026-02-06T18:32:59.013397"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 1,
+    "magnitude": 0.050691,
+    "prob_up": 0.9698,
+    "model_version_id": "20260206_155730",
+    "recorded_at": "2026-02-06T18:32:59.159034"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 1,
+    "magnitude": 0.041574,
+    "prob_up": 0.9991,
+    "model_version_id": "20260206_160508",
+    "recorded_at": "2026-02-06T18:32:59.265822"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.243721,
+    "prob_up": 0.0001,
+    "model_version_id": "20260206_160828",
+    "recorded_at": "2026-02-06T18:32:59.358330"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 0,
+    "magnitude": -0.243721,
+    "prob_up": 0.0001,
+    "model_version_id": "20260206_160951",
+    "recorded_at": "2026-02-06T18:32:59.440153"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 0,
+    "magnitude": -0.243721,
+    "prob_up": 0.0001,
+    "model_version_id": "20260206_161114",
+    "recorded_at": "2026-02-06T18:32:59.543014"
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 1,
+    "magnitude": -0.031326,
+    "prob_up": 0.6064,
+    "model_version_id": "20260206_161307",
+    "recorded_at": "2026-02-06T18:32:59.633175"
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 0,
+    "magnitude": 0.011087,
+    "prob_up": 0.4896,
+    "model_version_id": "20260206_161816",
+    "recorded_at": "2026-02-06T18:32:59.712920"
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 0,
+    "magnitude": -0.024896,
+    "prob_up": 0.0802,
+    "model_version_id": "20260206_162545",
+    "recorded_at": "2026-02-06T18:32:59.810182"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 1,
+    "magnitude": 0.093515,
+    "prob_up": 0.9438,
+    "model_version_id": "20260206_162907",
+    "recorded_at": "2026-02-06T18:32:59.901127"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 1,
+    "magnitude": 0.063687,
+    "prob_up": 0.8557,
+    "model_version_id": "20260206_163343",
+    "recorded_at": "2026-02-06T18:32:59.985788"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 1,
+    "magnitude": 0.173187,
+    "prob_up": 0.9997,
+    "model_version_id": "20260206_164103",
+    "recorded_at": "2026-02-06T18:33:00.116087"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.079785,
+    "prob_up": 0.0699,
+    "model_version_id": "20260206_164430",
+    "recorded_at": "2026-02-06T18:33:00.208156"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 0,
+    "magnitude": 0.026438,
+    "prob_up": 0.2351,
+    "model_version_id": "20260206_164908",
+    "recorded_at": "2026-02-06T18:33:00.289205"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 0,
+    "magnitude": 0.017909,
+    "prob_up": 0.2114,
+    "model_version_id": "20260206_165631",
+    "recorded_at": "2026-02-06T18:33:00.393704"
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.070708,
+    "prob_up": 0.0001,
+    "model_version_id": "20260206_170016",
+    "recorded_at": "2026-02-06T18:33:00.482535"
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 0,
+    "magnitude": -0.077163,
+    "prob_up": 0.0089,
+    "model_version_id": "20260206_170535",
+    "recorded_at": "2026-02-06T18:33:00.606229"
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 0,
+    "magnitude": -0.091527,
+    "prob_up": 0.0109,
+    "model_version_id": "20260206_171319",
+    "recorded_at": "2026-02-06T18:33:00.724527"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.11818,
+    "prob_up": 0.0103,
+    "model_version_id": "20260206_171658",
+    "recorded_at": "2026-02-06T18:33:00.812530"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 0,
+    "magnitude": -0.067698,
+    "prob_up": 0.0209,
+    "model_version_id": "20260206_172144",
+    "recorded_at": "2026-02-06T18:33:00.893498"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 0,
+    "magnitude": -0.086273,
+    "prob_up": 0.0005,
+    "model_version_id": "20260206_172923",
+    "recorded_at": "2026-02-06T18:33:01.012332"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 1,
+    "magnitude": 0.068866,
+    "prob_up": 0.7991,
+    "model_version_id": "20260206_155210",
+    "recorded_at": "2026-02-06T18:34:11.716766"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 1,
+    "magnitude": 0.057854,
+    "prob_up": 0.9958,
+    "model_version_id": "20260206_155730",
+    "recorded_at": "2026-02-06T18:34:11.805862"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 1,
+    "magnitude": 0.062313,
+    "prob_up": 1.0,
+    "model_version_id": "20260206_160508",
+    "recorded_at": "2026-02-06T18:34:11.895813"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.167302,
+    "prob_up": 0.0024,
+    "model_version_id": "20260206_160828",
+    "recorded_at": "2026-02-06T18:34:11.976908"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 0,
+    "magnitude": -0.167302,
+    "prob_up": 0.0024,
+    "model_version_id": "20260206_160951",
+    "recorded_at": "2026-02-06T18:34:12.049569"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 0,
+    "magnitude": -0.167302,
+    "prob_up": 0.0024,
+    "model_version_id": "20260206_161114",
+    "recorded_at": "2026-02-06T18:34:12.127996"
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 1,
+    "magnitude": -0.027202,
+    "prob_up": 0.9648,
+    "model_version_id": "20260206_161307",
+    "recorded_at": "2026-02-06T18:34:12.247228"
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 1,
+    "magnitude": 0.08225,
+    "prob_up": 0.9709,
+    "model_version_id": "20260206_161816",
+    "recorded_at": "2026-02-06T18:34:12.350790"
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 1,
+    "magnitude": 0.023393,
+    "prob_up": 0.9723,
+    "model_version_id": "20260206_162545",
+    "recorded_at": "2026-02-06T18:34:12.434599"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 1,
+    "magnitude": 0.093515,
+    "prob_up": 0.9438,
+    "model_version_id": "20260206_162907",
+    "recorded_at": "2026-02-06T18:34:12.522227"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 1,
+    "magnitude": 0.063687,
+    "prob_up": 0.8557,
+    "model_version_id": "20260206_163343",
+    "recorded_at": "2026-02-06T18:34:12.601584"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 1,
+    "magnitude": 0.173187,
+    "prob_up": 0.9997,
+    "model_version_id": "20260206_164103",
+    "recorded_at": "2026-02-06T18:34:12.679398"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.087464,
+    "prob_up": 0.0724,
+    "model_version_id": "20260206_164430",
+    "recorded_at": "2026-02-06T18:34:12.758797"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 1,
+    "magnitude": 0.073335,
+    "prob_up": 0.5964,
+    "model_version_id": "20260206_164908",
+    "recorded_at": "2026-02-06T18:34:12.835105"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 0,
+    "magnitude": 0.039878,
+    "prob_up": 0.4728,
+    "model_version_id": "20260206_165631",
+    "recorded_at": "2026-02-06T18:34:12.915981"
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.05407,
+    "prob_up": 0.0004,
+    "model_version_id": "20260206_170016",
+    "recorded_at": "2026-02-06T18:34:12.999365"
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 1,
+    "magnitude": 0.037292,
+    "prob_up": 0.5099,
+    "model_version_id": "20260206_170535",
+    "recorded_at": "2026-02-06T18:34:13.081368"
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 0,
+    "magnitude": -0.006378,
+    "prob_up": 0.1767,
+    "model_version_id": "20260206_171319",
+    "recorded_at": "2026-02-06T18:34:13.166991"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 1,
+    "magnitude": -0.067892,
+    "prob_up": 0.7729,
+    "model_version_id": "20260206_171658",
+    "recorded_at": "2026-02-06T18:34:13.249362"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 0,
+    "magnitude": -0.046426,
+    "prob_up": 0.1281,
+    "model_version_id": "20260206_172144",
+    "recorded_at": "2026-02-06T18:34:13.334684"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 1,
+    "magnitude": -0.075007,
+    "prob_up": 0.969,
+    "model_version_id": "20260206_172923",
+    "recorded_at": "2026-02-06T18:34:13.422739"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 1,
+    "magnitude": -0.130773,
+    "prob_up": 0.5595,
+    "model_version_id": "20260206_221318",
+    "recorded_at": "2026-02-06T22:18:31.769840"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.167302,
+    "prob_up": 0.0024,
+    "model_version_id": "20260206_160828",
+    "recorded_at": "2026-02-06T22:18:31.929627"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 0,
+    "magnitude": -0.167302,
+    "prob_up": 0.0024,
+    "model_version_id": "20260206_160951",
+    "recorded_at": "2026-02-06T22:18:31.996614"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 0,
+    "magnitude": -0.167302,
+    "prob_up": 0.0024,
+    "model_version_id": "20260206_161114",
+    "recorded_at": "2026-02-06T22:18:32.061849"
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 1,
+    "magnitude": -0.027202,
+    "prob_up": 0.9648,
+    "model_version_id": "20260206_161307",
+    "recorded_at": "2026-02-06T22:18:32.133539"
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 1,
+    "magnitude": 0.08225,
+    "prob_up": 0.9709,
+    "model_version_id": "20260206_161816",
+    "recorded_at": "2026-02-06T22:18:32.199223"
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 1,
+    "magnitude": 0.023393,
+    "prob_up": 0.9723,
+    "model_version_id": "20260206_162545",
+    "recorded_at": "2026-02-06T22:18:32.285945"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 1,
+    "magnitude": 0.093515,
+    "prob_up": 0.9438,
+    "model_version_id": "20260206_162907",
+    "recorded_at": "2026-02-06T22:18:32.361564"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 1,
+    "magnitude": 0.063687,
+    "prob_up": 0.8557,
+    "model_version_id": "20260206_163343",
+    "recorded_at": "2026-02-06T22:18:32.421678"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 1,
+    "magnitude": 0.173187,
+    "prob_up": 0.9997,
+    "model_version_id": "20260206_164103",
+    "recorded_at": "2026-02-06T22:18:32.499277"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.087464,
+    "prob_up": 0.0724,
+    "model_version_id": "20260206_164430",
+    "recorded_at": "2026-02-06T22:18:32.566889"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 1,
+    "magnitude": 0.073335,
+    "prob_up": 0.5964,
+    "model_version_id": "20260206_164908",
+    "recorded_at": "2026-02-06T22:18:32.627714"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 0,
+    "magnitude": 0.039878,
+    "prob_up": 0.4728,
+    "model_version_id": "20260206_165631",
+    "recorded_at": "2026-02-06T22:18:32.690306"
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.05407,
+    "prob_up": 0.0004,
+    "model_version_id": "20260206_170016",
+    "recorded_at": "2026-02-06T22:18:32.771751"
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 1,
+    "magnitude": 0.037292,
+    "prob_up": 0.5099,
+    "model_version_id": "20260206_170535",
+    "recorded_at": "2026-02-06T22:18:32.845142"
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 0,
+    "magnitude": -0.006378,
+    "prob_up": 0.1767,
+    "model_version_id": "20260206_171319",
+    "recorded_at": "2026-02-06T22:18:32.929211"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 1,
+    "magnitude": -0.067892,
+    "prob_up": 0.7729,
+    "model_version_id": "20260206_171658",
+    "recorded_at": "2026-02-06T22:18:33.002933"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 0,
+    "magnitude": -0.046426,
+    "prob_up": 0.1281,
+    "model_version_id": "20260206_172144",
+    "recorded_at": "2026-02-06T22:18:33.078092"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 1,
+    "magnitude": -0.075007,
+    "prob_up": 0.969,
+    "model_version_id": "20260206_172923",
+    "recorded_at": "2026-02-06T22:18:33.156621"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.50379,
+    "prob_up": 0.5595,
+    "model_version_id": "20260206_221318",
+    "recorded_at": "2026-02-06T22:33:01.276860",
+    "magnitude_5": [
+      -0.13077309727668762,
+      -0.13077309727668762,
+      -0.13077309727668762,
+      -0.13077309727668762,
+      -0.13077309727668762
+    ]
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.599652,
+    "prob_up": 0.0024,
+    "model_version_id": "20260206_160828",
+    "recorded_at": "2026-02-06T22:33:01.362893",
+    "magnitude_5": [
+      -0.16730187833309174,
+      -0.16730187833309174,
+      -0.16730187833309174,
+      -0.16730187833309174,
+      -0.16730187833309174
+    ]
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 0,
+    "magnitude": -0.599652,
+    "prob_up": 0.0024,
+    "model_version_id": "20260206_160951",
+    "recorded_at": "2026-02-06T22:33:01.437020",
+    "magnitude_5": [
+      -0.16730187833309174,
+      -0.16730187833309174,
+      -0.16730187833309174,
+      -0.16730187833309174,
+      -0.16730187833309174
+    ]
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 0,
+    "magnitude": -0.599652,
+    "prob_up": 0.0024,
+    "model_version_id": "20260206_161114",
+    "recorded_at": "2026-02-06T22:33:01.499440",
+    "magnitude_5": [
+      -0.16730187833309174,
+      -0.16730187833309174,
+      -0.16730187833309174,
+      -0.16730187833309174,
+      -0.16730187833309174
+    ]
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.128809,
+    "prob_up": 0.9648,
+    "model_version_id": "20260206_161307",
+    "recorded_at": "2026-02-06T22:33:01.572357",
+    "magnitude_5": [
+      -0.027202056720852852,
+      -0.027202056720852852,
+      -0.027202056720852852,
+      -0.027202056720852852,
+      -0.027202056720852852
+    ]
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 1,
+    "magnitude": 0.484696,
+    "prob_up": 0.9709,
+    "model_version_id": "20260206_161816",
+    "recorded_at": "2026-02-06T22:33:01.635022",
+    "magnitude_5": [
+      0.08224985003471375,
+      0.08224985003471375,
+      0.08224985003471375,
+      0.08224985003471375,
+      0.08224985003471375
+    ]
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 1,
+    "magnitude": 0.122566,
+    "prob_up": 0.9723,
+    "model_version_id": "20260206_162545",
+    "recorded_at": "2026-02-06T22:33:01.711673",
+    "magnitude_5": [
+      0.023392796516418457,
+      0.023392796516418457,
+      0.023392796516418457,
+      0.023392796516418457,
+      0.023392796516418457
+    ]
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 1,
+    "magnitude": 0.563594,
+    "prob_up": 0.9438,
+    "model_version_id": "20260206_162907",
+    "recorded_at": "2026-02-06T22:33:01.785522",
+    "magnitude_5": [
+      0.0935150682926178,
+      0.0935150682926178,
+      0.0935150682926178,
+      0.0935150682926178,
+      0.0935150682926178
+    ]
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 1,
+    "magnitude": 0.361661,
+    "prob_up": 0.8557,
+    "model_version_id": "20260206_163343",
+    "recorded_at": "2026-02-06T22:33:01.852508",
+    "magnitude_5": [
+      0.06368681788444519,
+      0.06368681788444519,
+      0.06368681788444519,
+      0.06368681788444519,
+      0.06368681788444519
+    ]
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 1,
+    "magnitude": 1.222475,
+    "prob_up": 0.9997,
+    "model_version_id": "20260206_164103",
+    "recorded_at": "2026-02-06T22:33:01.965365",
+    "magnitude_5": [
+      0.17318738996982574,
+      0.17318738996982574,
+      0.17318738996982574,
+      0.17318738996982574,
+      0.17318738996982574
+    ]
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.367225,
+    "prob_up": 0.0724,
+    "model_version_id": "20260206_164430",
+    "recorded_at": "2026-02-06T22:33:02.037789",
+    "magnitude_5": [
+      -0.08746436983346939,
+      -0.08746436983346939,
+      -0.08746436983346939,
+      -0.08746436983346939,
+      -0.08746436983346939
+    ]
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 1,
+    "magnitude": 0.424549,
+    "prob_up": 0.5964,
+    "model_version_id": "20260206_164908",
+    "recorded_at": "2026-02-06T22:33:02.121921",
+    "magnitude_5": [
+      0.07333540171384811,
+      0.07333540171384811,
+      0.07333540171384811,
+      0.07333540171384811,
+      0.07333540171384811
+    ]
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 1,
+    "magnitude": 0.215939,
+    "prob_up": 0.4728,
+    "model_version_id": "20260206_165631",
+    "recorded_at": "2026-02-06T22:33:02.198839",
+    "magnitude_5": [
+      0.03987786918878555,
+      0.03987786918878555,
+      0.03987786918878555,
+      0.03987786918878555,
+      0.03987786918878555
+    ]
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.242654,
+    "prob_up": 0.0004,
+    "model_version_id": "20260206_170016",
+    "recorded_at": "2026-02-06T22:33:02.283155",
+    "magnitude_5": [
+      -0.054070182144641876,
+      -0.054070182144641876,
+      -0.054070182144641876,
+      -0.054070182144641876,
+      -0.054070182144641876
+    ]
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 1,
+    "magnitude": 0.200897,
+    "prob_up": 0.5099,
+    "model_version_id": "20260206_170535",
+    "recorded_at": "2026-02-06T22:33:02.357461",
+    "magnitude_5": [
+      0.037292320281267166,
+      0.037292320281267166,
+      0.037292320281267166,
+      0.037292320281267166,
+      0.037292320281267166
+    ]
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 0,
+    "magnitude": -0.031488,
+    "prob_up": 0.1767,
+    "model_version_id": "20260206_171319",
+    "recorded_at": "2026-02-06T22:33:02.441716",
+    "magnitude_5": [
+      -0.006378374062478542,
+      -0.006378374062478542,
+      -0.006378374062478542,
+      -0.006378374062478542,
+      -0.006378374062478542
+    ]
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.29639,
+    "prob_up": 0.7729,
+    "model_version_id": "20260206_171658",
+    "recorded_at": "2026-02-06T22:33:02.697617",
+    "magnitude_5": [
+      -0.06789175420999527,
+      -0.06789175420999527,
+      -0.06789175420999527,
+      -0.06789175420999527,
+      -0.06789175420999527
+    ]
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 0,
+    "magnitude": -0.211555,
+    "prob_up": 0.1281,
+    "model_version_id": "20260206_172144",
+    "recorded_at": "2026-02-06T22:33:02.783733",
+    "magnitude_5": [
+      -0.04642621427774429,
+      -0.04642621427774429,
+      -0.04642621427774429,
+      -0.04642621427774429,
+      -0.04642621427774429
+    ]
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 0,
+    "magnitude": -0.322837,
+    "prob_up": 0.969,
+    "model_version_id": "20260206_172923",
+    "recorded_at": "2026-02-06T22:33:02.863039",
+    "magnitude_5": [
+      -0.07500660419464111,
+      -0.07500660419464111,
+      -0.07500660419464111,
+      -0.07500660419464111,
+      -0.07500660419464111
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.50379,
+    "prob_up": 0.5595,
+    "model_version_id": "20260206_221318",
+    "recorded_at": "2026-02-06T23:01:12.704179",
+    "magnitude_5": [
+      -0.13077309727668762,
+      -0.13077309727668762,
+      -0.13077309727668762,
+      -0.13077309727668762,
+      -0.13077309727668762
+    ]
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.599652,
+    "prob_up": 0.0024,
+    "model_version_id": "20260206_160828",
+    "recorded_at": "2026-02-06T23:01:12.800307",
+    "magnitude_5": [
+      -0.16730187833309174,
+      -0.16730187833309174,
+      -0.16730187833309174,
+      -0.16730187833309174,
+      -0.16730187833309174
+    ]
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 0,
+    "magnitude": -0.599652,
+    "prob_up": 0.0024,
+    "model_version_id": "20260206_160951",
+    "recorded_at": "2026-02-06T23:01:12.893876",
+    "magnitude_5": [
+      -0.16730187833309174,
+      -0.16730187833309174,
+      -0.16730187833309174,
+      -0.16730187833309174,
+      -0.16730187833309174
+    ]
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 0,
+    "magnitude": -0.599652,
+    "prob_up": 0.0024,
+    "model_version_id": "20260206_161114",
+    "recorded_at": "2026-02-06T23:01:12.963277",
+    "magnitude_5": [
+      -0.16730187833309174,
+      -0.16730187833309174,
+      -0.16730187833309174,
+      -0.16730187833309174,
+      -0.16730187833309174
+    ]
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.128809,
+    "prob_up": 0.9648,
+    "model_version_id": "20260206_161307",
+    "recorded_at": "2026-02-06T23:01:13.044119",
+    "magnitude_5": [
+      -0.027202056720852852,
+      -0.027202056720852852,
+      -0.027202056720852852,
+      -0.027202056720852852,
+      -0.027202056720852852
+    ]
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 1,
+    "magnitude": 0.484696,
+    "prob_up": 0.9709,
+    "model_version_id": "20260206_161816",
+    "recorded_at": "2026-02-06T23:01:13.126138",
+    "magnitude_5": [
+      0.08224985003471375,
+      0.08224985003471375,
+      0.08224985003471375,
+      0.08224985003471375,
+      0.08224985003471375
+    ]
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 1,
+    "magnitude": 0.122566,
+    "prob_up": 0.9723,
+    "model_version_id": "20260206_162545",
+    "recorded_at": "2026-02-06T23:01:13.210749",
+    "magnitude_5": [
+      0.023392796516418457,
+      0.023392796516418457,
+      0.023392796516418457,
+      0.023392796516418457,
+      0.023392796516418457
+    ]
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 1,
+    "magnitude": 0.563594,
+    "prob_up": 0.9438,
+    "model_version_id": "20260206_162907",
+    "recorded_at": "2026-02-06T23:01:13.287844",
+    "magnitude_5": [
+      0.0935150682926178,
+      0.0935150682926178,
+      0.0935150682926178,
+      0.0935150682926178,
+      0.0935150682926178
+    ]
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 1,
+    "magnitude": 0.361661,
+    "prob_up": 0.8557,
+    "model_version_id": "20260206_163343",
+    "recorded_at": "2026-02-06T23:01:13.365002",
+    "magnitude_5": [
+      0.06368681788444519,
+      0.06368681788444519,
+      0.06368681788444519,
+      0.06368681788444519,
+      0.06368681788444519
+    ]
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 1,
+    "magnitude": 1.222475,
+    "prob_up": 0.9997,
+    "model_version_id": "20260206_164103",
+    "recorded_at": "2026-02-06T23:01:13.449428",
+    "magnitude_5": [
+      0.17318738996982574,
+      0.17318738996982574,
+      0.17318738996982574,
+      0.17318738996982574,
+      0.17318738996982574
+    ]
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.367225,
+    "prob_up": 0.0724,
+    "model_version_id": "20260206_164430",
+    "recorded_at": "2026-02-06T23:01:13.533208",
+    "magnitude_5": [
+      -0.08746436983346939,
+      -0.08746436983346939,
+      -0.08746436983346939,
+      -0.08746436983346939,
+      -0.08746436983346939
+    ]
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 1,
+    "magnitude": 0.424549,
+    "prob_up": 0.5964,
+    "model_version_id": "20260206_164908",
+    "recorded_at": "2026-02-06T23:01:13.613807",
+    "magnitude_5": [
+      0.07333540171384811,
+      0.07333540171384811,
+      0.07333540171384811,
+      0.07333540171384811,
+      0.07333540171384811
+    ]
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 1,
+    "magnitude": 0.215939,
+    "prob_up": 0.4728,
+    "model_version_id": "20260206_165631",
+    "recorded_at": "2026-02-06T23:01:13.695967",
+    "magnitude_5": [
+      0.03987786918878555,
+      0.03987786918878555,
+      0.03987786918878555,
+      0.03987786918878555,
+      0.03987786918878555
+    ]
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.242654,
+    "prob_up": 0.0004,
+    "model_version_id": "20260206_170016",
+    "recorded_at": "2026-02-06T23:01:13.781319",
+    "magnitude_5": [
+      -0.054070182144641876,
+      -0.054070182144641876,
+      -0.054070182144641876,
+      -0.054070182144641876,
+      -0.054070182144641876
+    ]
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 1,
+    "magnitude": 0.200897,
+    "prob_up": 0.5099,
+    "model_version_id": "20260206_170535",
+    "recorded_at": "2026-02-06T23:01:13.859156",
+    "magnitude_5": [
+      0.037292320281267166,
+      0.037292320281267166,
+      0.037292320281267166,
+      0.037292320281267166,
+      0.037292320281267166
+    ]
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 0,
+    "magnitude": -0.031488,
+    "prob_up": 0.1767,
+    "model_version_id": "20260206_171319",
+    "recorded_at": "2026-02-06T23:01:13.942164",
+    "magnitude_5": [
+      -0.006378374062478542,
+      -0.006378374062478542,
+      -0.006378374062478542,
+      -0.006378374062478542,
+      -0.006378374062478542
+    ]
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.29639,
+    "prob_up": 0.7729,
+    "model_version_id": "20260206_171658",
+    "recorded_at": "2026-02-06T23:01:14.022218",
+    "magnitude_5": [
+      -0.06789175420999527,
+      -0.06789175420999527,
+      -0.06789175420999527,
+      -0.06789175420999527,
+      -0.06789175420999527
+    ]
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 0,
+    "magnitude": -0.211555,
+    "prob_up": 0.1281,
+    "model_version_id": "20260206_172144",
+    "recorded_at": "2026-02-06T23:01:14.177934",
+    "magnitude_5": [
+      -0.04642621427774429,
+      -0.04642621427774429,
+      -0.04642621427774429,
+      -0.04642621427774429,
+      -0.04642621427774429
+    ]
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 0,
+    "magnitude": -0.322837,
+    "prob_up": 0.969,
+    "model_version_id": "20260206_172923",
+    "recorded_at": "2026-02-06T23:01:14.383717",
+    "magnitude_5": [
+      -0.07500660419464111,
+      -0.07500660419464111,
+      -0.07500660419464111,
+      -0.07500660419464111,
+      -0.07500660419464111
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 1,
+    "magnitude": 0.07231652136132682,
+    "prob_up": 0.5777254104614258,
+    "model_version_id": "20260206_232614",
+    "recorded_at": "2026-02-06T23:49:59.343932",
+    "magnitude_5": [
+      -0.05778658390045166,
+      0.10465366393327713,
+      -0.01753367856144905,
+      0.007890908047556877,
+      0.04043840989470482
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 1,
+    "magnitude": 0.05618753252801523,
+    "prob_up": 0.5968785285949707,
+    "model_version_id": "20260206_233059",
+    "recorded_at": "2026-02-06T23:49:59.456268",
+    "magnitude_5": [
+      0.0370168574154377,
+      0.06071490794420242,
+      -0.0169511865824461,
+      -0.032171327620744705,
+      0.009213334880769253
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 0,
+    "magnitude": -0.04720037725636961,
+    "prob_up": 0.5027194619178772,
+    "model_version_id": "20260206_233647",
+    "recorded_at": "2026-02-06T23:49:59.567613",
+    "magnitude_5": [
+      0.01324241328984499,
+      -0.04714210331439972,
+      -0.02832297421991825,
+      0.012406722642481327,
+      0.0031898366287350655
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-06",
+    "years": 1,
+    "direction": 1,
+    "magnitude": 0.07231652136132682,
+    "prob_up": 0.5777254104614258,
+    "model_version_id": "20260206_232614",
+    "recorded_at": "2026-02-06T23:50:56.106900",
+    "magnitude_5": [
+      -0.05778658390045166,
+      0.10465366393327713,
+      -0.01753367856144905,
+      0.007890908047556877,
+      0.04043840989470482
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-06",
+    "years": 2,
+    "direction": 1,
+    "magnitude": 0.05618753252801523,
+    "prob_up": 0.5968785285949707,
+    "model_version_id": "20260206_233059",
+    "recorded_at": "2026-02-06T23:50:56.222635",
+    "magnitude_5": [
+      0.0370168574154377,
+      0.06071490794420242,
+      -0.0169511865824461,
+      -0.032171327620744705,
+      0.009213334880769253
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-06",
+    "years": 3,
+    "direction": 0,
+    "magnitude": -0.04720037725636961,
+    "prob_up": 0.5027194619178772,
+    "model_version_id": "20260206_233647",
+    "recorded_at": "2026-02-06T23:50:56.332724",
+    "magnitude_5": [
+      0.01324241328984499,
+      -0.04714210331439972,
+      -0.02832297421991825,
+      0.012406722642481327,
+      0.0031898366287350655
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.187184,
+    "prob_up": 0.6375,
+    "model_version_id": "20260207_000043",
+    "recorded_at": "2026-02-07T00:13:03.820585",
+    "magnitude_5": [
+      -0.003163450164720416,
+      -0.0673958882689476,
+      -0.03689161688089371,
+      -0.0363905131816864,
+      -0.05790453776717186
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 2,
+    "direction": 1,
+    "magnitude": 0.155838,
+    "prob_up": 0.5119,
+    "model_version_id": "20260207_000505",
+    "recorded_at": "2026-02-07T00:13:03.917516",
+    "magnitude_5": [
+      0.05934968218207359,
+      0.021729979664087296,
+      0.029124271124601364,
+      0.01926334947347641,
+      0.018045533448457718
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 3,
+    "direction": 1,
+    "magnitude": 0.005359,
+    "prob_up": 0.4984,
+    "model_version_id": "20260207_001055",
+    "recorded_at": "2026-02-07T00:13:04.025588",
+    "magnitude_5": [
+      0.025587331503629684,
+      -0.021184934303164482,
+      0.017606716603040695,
+      -0.002725376980379224,
+      -0.013145720586180687
+    ]
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.424835,
+    "prob_up": 0.3327,
+    "model_version_id": "20260207_001053",
+    "recorded_at": "2026-02-07T00:13:04.120595",
+    "magnitude_5": [
+      -0.11138194054365158,
+      -0.19392627477645874,
+      -0.02652355656027794,
+      -0.10818321257829666,
+      -0.07508578896522522
+    ]
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 1,
+    "magnitude": 0.001477,
+    "prob_up": 0.463,
+    "model_version_id": "20260207_001128",
+    "recorded_at": "2026-02-07T00:13:04.230922",
+    "magnitude_5": [
+      0.011160466820001602,
+      -0.031245630234479904,
+      0.036693181842565536,
+      -0.00275076599791646,
+      -0.011097567155957222
+    ]
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.096976,
+    "prob_up": 0.4884,
+    "model_version_id": "20260207_000058",
+    "recorded_at": "2026-02-07T00:13:04.382426",
+    "magnitude_5": [
+      -0.0006938865408301353,
+      -0.02373505011200905,
+      -0.005224189721047878,
+      -0.030200429260730743,
+      -0.040541864931583405
+    ]
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-07",
+    "years": 2,
+    "direction": 0,
+    "magnitude": -0.200337,
+    "prob_up": 0.5754,
+    "model_version_id": "20260207_000523",
+    "recorded_at": "2026-02-07T00:13:04.476398",
+    "magnitude_5": [
+      -0.039526693522930145,
+      -0.06762197613716125,
+      -0.061410609632730484,
+      -0.05649501085281372,
+      0.008346861228346825
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.187184,
+    "prob_up": 0.6375,
+    "model_version_id": "20260207_000043",
+    "recorded_at": "2026-02-07T00:16:37.908007",
+    "magnitude_5": [
+      -0.003163450164720416,
+      -0.0673958882689476,
+      -0.03689161688089371,
+      -0.0363905131816864,
+      -0.05790453776717186
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 2,
+    "direction": 1,
+    "magnitude": 0.155838,
+    "prob_up": 0.5119,
+    "model_version_id": "20260207_000505",
+    "recorded_at": "2026-02-07T00:16:37.999003",
+    "magnitude_5": [
+      0.05934968218207359,
+      0.021729979664087296,
+      0.029124271124601364,
+      0.01926334947347641,
+      0.018045533448457718
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 3,
+    "direction": 1,
+    "magnitude": 0.005359,
+    "prob_up": 0.4984,
+    "model_version_id": "20260207_001055",
+    "recorded_at": "2026-02-07T00:16:38.099361",
+    "magnitude_5": [
+      0.025587331503629684,
+      -0.021184934303164482,
+      0.017606716603040695,
+      -0.002725376980379224,
+      -0.013145720586180687
+    ]
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.424835,
+    "prob_up": 0.3327,
+    "model_version_id": "20260207_001053",
+    "recorded_at": "2026-02-07T00:16:38.186261",
+    "magnitude_5": [
+      -0.11138194054365158,
+      -0.19392627477645874,
+      -0.02652355656027794,
+      -0.10818321257829666,
+      -0.07508578896522522
+    ]
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-07",
+    "years": 2,
+    "direction": 0,
+    "magnitude": -0.133225,
+    "prob_up": 0.5139,
+    "model_version_id": "20260207_001348",
+    "recorded_at": "2026-02-07T00:16:38.267305",
+    "magnitude_5": [
+      -0.04719086363911629,
+      0.021436188369989395,
+      -0.026948237791657448,
+      -0.02016577124595642,
+      -0.06588474661111832
+    ]
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-07",
+    "years": 3,
+    "direction": 0,
+    "magnitude": -0.133225,
+    "prob_up": 0.5139,
+    "model_version_id": "20260207_001520",
+    "recorded_at": "2026-02-07T00:16:38.344591",
+    "magnitude_5": [
+      -0.04719086363911629,
+      0.021436188369989395,
+      -0.026948237791657448,
+      -0.02016577124595642,
+      -0.06588474661111832
+    ]
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 1,
+    "magnitude": 0.001477,
+    "prob_up": 0.463,
+    "model_version_id": "20260207_001128",
+    "recorded_at": "2026-02-07T00:16:38.454834",
+    "magnitude_5": [
+      0.011160466820001602,
+      -0.031245630234479904,
+      0.036693181842565536,
+      -0.00275076599791646,
+      -0.011097567155957222
+    ]
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.096976,
+    "prob_up": 0.4884,
+    "model_version_id": "20260207_000058",
+    "recorded_at": "2026-02-07T00:16:38.598243",
+    "magnitude_5": [
+      -0.0006938865408301353,
+      -0.02373505011200905,
+      -0.005224189721047878,
+      -0.030200429260730743,
+      -0.040541864931583405
+    ]
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-07",
+    "years": 2,
+    "direction": 0,
+    "magnitude": -0.200337,
+    "prob_up": 0.5754,
+    "model_version_id": "20260207_000523",
+    "recorded_at": "2026-02-07T00:16:38.689798",
+    "magnitude_5": [
+      -0.039526693522930145,
+      -0.06762197613716125,
+      -0.061410609632730484,
+      -0.05649501085281372,
+      0.008346861228346825
+    ]
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-07",
+    "years": 3,
+    "direction": 0,
+    "magnitude": -0.22642,
+    "prob_up": 0.5128,
+    "model_version_id": "20260207_001319",
+    "recorded_at": "2026-02-07T00:16:38.784999",
+    "magnitude_5": [
+      -0.04637254774570465,
+      -0.026020323857665062,
+      -0.04216368496417999,
+      -0.09658962488174438,
+      -0.03750124201178551
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.124207,
+    "prob_up": 0.5754,
+    "model_version_id": "20260207_003928",
+    "recorded_at": "2026-02-07T00:45:17.735009",
+    "magnitude_5": [
+      0.012599380686879158,
+      -0.009080186486244202,
+      -0.007245990913361311,
+      -0.02829444594681263,
+      -0.09520735591650009
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 2,
+    "direction": 0,
+    "magnitude": -0.134148,
+    "prob_up": 0.5118,
+    "model_version_id": "20260207_004001",
+    "recorded_at": "2026-02-07T00:45:17.830400",
+    "magnitude_5": [
+      0.017483433708548546,
+      -0.09093991667032242,
+      0.02997715212404728,
+      -0.09340935945510864,
+      0.002500960137695074
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 3,
+    "direction": 0,
+    "magnitude": -0.196843,
+    "prob_up": 0.5118,
+    "model_version_id": "20260207_004101",
+    "recorded_at": "2026-02-07T00:45:17.926726",
+    "magnitude_5": [
+      -0.018257182091474533,
+      0.01488873828202486,
+      -0.05131431296467781,
+      -0.06753036379814148,
+      -0.08877193927764893
+    ]
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.015679,
+    "prob_up": 0.4457,
+    "model_version_id": "20260207_004305",
+    "recorded_at": "2026-02-07T00:45:18.014103",
+    "magnitude_5": [
+      0.07796423137187958,
+      -0.03782642260193825,
+      -0.05213667079806328,
+      -0.019895164296030998,
+      0.021552056074142456
+    ]
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-07",
+    "years": 2,
+    "direction": 0,
+    "magnitude": -0.015679,
+    "prob_up": 0.4457,
+    "model_version_id": "20260207_004315",
+    "recorded_at": "2026-02-07T00:45:18.085712",
+    "magnitude_5": [
+      0.07796423137187958,
+      -0.03782642260193825,
+      -0.05213667079806328,
+      -0.019895164296030998,
+      0.021552056074142456
+    ]
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-07",
+    "years": 3,
+    "direction": 0,
+    "magnitude": -0.015679,
+    "prob_up": 0.4457,
+    "model_version_id": "20260207_004325",
+    "recorded_at": "2026-02-07T00:45:18.168259",
+    "magnitude_5": [
+      0.07796423137187958,
+      -0.03782642260193825,
+      -0.05213667079806328,
+      -0.019895164296030998,
+      0.021552056074142456
+    ]
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.050038,
+    "prob_up": 0.4531,
+    "model_version_id": "20260207_004355",
+    "recorded_at": "2026-02-07T00:45:18.262772",
+    "magnitude_5": [
+      -0.02000773698091507,
+      -0.017144212499260902,
+      -0.028434908017516136,
+      0.014777366071939468,
+      0.0003475821577012539
+    ]
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-07",
+    "years": 2,
+    "direction": 1,
+    "magnitude": 0.012178,
+    "prob_up": 0.411,
+    "model_version_id": "20260207_004448",
+    "recorded_at": "2026-02-07T00:45:18.354463",
+    "magnitude_5": [
+      0.014506971463561058,
+      0.03776746615767479,
+      -0.0040883636102080345,
+      -0.02631600946187973,
+      -0.00856819748878479
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.179831,
+    "prob_up": 0.5494,
+    "model_version_id": "20260207_104254",
+    "recorded_at": "2026-02-07T10:51:51.771043"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 2,
+    "direction": 0,
+    "magnitude": -0.086532,
+    "prob_up": 0.5361,
+    "model_version_id": "20260207_104330",
+    "recorded_at": "2026-02-07T10:51:51.857521"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 3,
+    "direction": 0,
+    "magnitude": -0.112102,
+    "prob_up": 0.4972,
+    "model_version_id": "20260207_104428",
+    "recorded_at": "2026-02-07T10:51:51.951260"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.079469,
+    "prob_up": 0.4696,
+    "model_version_id": "20260207_104438",
+    "recorded_at": "2026-02-07T10:51:52.030313"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-07",
+    "years": 2,
+    "direction": 0,
+    "magnitude": -0.079469,
+    "prob_up": 0.4696,
+    "model_version_id": "20260207_104448",
+    "recorded_at": "2026-02-07T10:51:52.108274"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-07",
+    "years": 3,
+    "direction": 0,
+    "magnitude": -0.079469,
+    "prob_up": 0.4696,
+    "model_version_id": "20260207_104457",
+    "recorded_at": "2026-02-07T10:51:52.187556"
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.008609,
+    "prob_up": 0.4711,
+    "model_version_id": "20260207_104527",
+    "recorded_at": "2026-02-07T10:51:52.283534"
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-07",
+    "years": 2,
+    "direction": 0,
+    "magnitude": -0.115655,
+    "prob_up": 0.5101,
+    "model_version_id": "20260207_104629",
+    "recorded_at": "2026-02-07T10:51:52.370424"
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-07",
+    "years": 3,
+    "direction": 1,
+    "magnitude": 0.046728,
+    "prob_up": 0.4203,
+    "model_version_id": "20260207_104808",
+    "recorded_at": "2026-02-07T10:51:52.459419"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.070374,
+    "prob_up": 0.5042,
+    "model_version_id": "20260207_104823",
+    "recorded_at": "2026-02-07T10:51:52.555592"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-07",
+    "years": 2,
+    "direction": 0,
+    "magnitude": -0.087289,
+    "prob_up": 0.4979,
+    "model_version_id": "20260207_104858",
+    "recorded_at": "2026-02-07T10:51:52.642669"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-07",
+    "years": 3,
+    "direction": 1,
+    "magnitude": 0.075172,
+    "prob_up": 0.4504,
+    "model_version_id": "20260207_105011",
+    "recorded_at": "2026-02-07T10:51:52.727111"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.10137,
+    "prob_up": 0.5571,
+    "model_version_id": "20260207_105030",
+    "recorded_at": "2026-02-07T10:51:52.816235"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-07",
+    "years": 2,
+    "direction": 1,
+    "magnitude": 0.000517,
+    "prob_up": 0.5057,
+    "model_version_id": "20260207_105106",
+    "recorded_at": "2026-02-07T10:51:52.898808"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-07",
+    "years": 3,
+    "direction": 1,
+    "magnitude": 0.004813,
+    "prob_up": 0.6,
+    "model_version_id": "20260205_183858",
+    "recorded_at": "2026-02-07T10:51:54.668732"
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 1,
+    "magnitude": 0.000497,
+    "prob_up": 0.6,
+    "model_version_id": "20260205_183858",
+    "recorded_at": "2026-02-07T10:51:56.215292"
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-07",
+    "years": 2,
+    "direction": 1,
+    "magnitude": 0.000497,
+    "prob_up": 0.6,
+    "model_version_id": "20260205_183858",
+    "recorded_at": "2026-02-07T10:51:57.910118"
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-07",
+    "years": 3,
+    "direction": 1,
+    "magnitude": 0.000497,
+    "prob_up": 0.6,
+    "model_version_id": "20260205_183858",
+    "recorded_at": "2026-02-07T10:51:59.450484"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.009818,
+    "prob_up": 0.4,
+    "model_version_id": "20260205_183858",
+    "recorded_at": "2026-02-07T10:52:00.801951"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-07",
+    "years": 2,
+    "direction": 0,
+    "magnitude": -0.009818,
+    "prob_up": 0.4,
+    "model_version_id": "20260205_183858",
+    "recorded_at": "2026-02-07T10:52:02.448385"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-07",
+    "years": 3,
+    "direction": 0,
+    "magnitude": -0.009818,
+    "prob_up": 0.4,
+    "model_version_id": "20260205_183858",
+    "recorded_at": "2026-02-07T10:52:03.912658"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.179831,
+    "prob_up": 0.5494,
+    "model_version_id": "20260207_104254",
+    "recorded_at": "2026-02-07T10:58:03.582200"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 2,
+    "direction": 0,
+    "magnitude": -0.086532,
+    "prob_up": 0.5361,
+    "model_version_id": "20260207_104330",
+    "recorded_at": "2026-02-07T10:58:03.681591"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 3,
+    "direction": 0,
+    "magnitude": -0.112102,
+    "prob_up": 0.4972,
+    "model_version_id": "20260207_104428",
+    "recorded_at": "2026-02-07T10:58:03.776177"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.079469,
+    "prob_up": 0.4696,
+    "model_version_id": "20260207_104438",
+    "recorded_at": "2026-02-07T10:58:03.856821"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-07",
+    "years": 2,
+    "direction": 0,
+    "magnitude": -0.079469,
+    "prob_up": 0.4696,
+    "model_version_id": "20260207_104448",
+    "recorded_at": "2026-02-07T10:58:03.932810"
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-07",
+    "years": 3,
+    "direction": 0,
+    "magnitude": -0.079469,
+    "prob_up": 0.4696,
+    "model_version_id": "20260207_104457",
+    "recorded_at": "2026-02-07T10:58:04.005857"
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.008609,
+    "prob_up": 0.4711,
+    "model_version_id": "20260207_104527",
+    "recorded_at": "2026-02-07T10:58:04.095911"
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-07",
+    "years": 2,
+    "direction": 0,
+    "magnitude": -0.115655,
+    "prob_up": 0.5101,
+    "model_version_id": "20260207_104629",
+    "recorded_at": "2026-02-07T10:58:04.181053"
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-07",
+    "years": 3,
+    "direction": 1,
+    "magnitude": 0.046728,
+    "prob_up": 0.4203,
+    "model_version_id": "20260207_104808",
+    "recorded_at": "2026-02-07T10:58:04.267050"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.070374,
+    "prob_up": 0.5042,
+    "model_version_id": "20260207_104823",
+    "recorded_at": "2026-02-07T10:58:04.353105"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-07",
+    "years": 2,
+    "direction": 0,
+    "magnitude": -0.087289,
+    "prob_up": 0.4979,
+    "model_version_id": "20260207_104858",
+    "recorded_at": "2026-02-07T10:58:04.439546"
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-07",
+    "years": 3,
+    "direction": 1,
+    "magnitude": 0.075172,
+    "prob_up": 0.4504,
+    "model_version_id": "20260207_105011",
+    "recorded_at": "2026-02-07T10:58:04.528511"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.10137,
+    "prob_up": 0.5571,
+    "model_version_id": "20260207_105030",
+    "recorded_at": "2026-02-07T10:58:04.621489"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-07",
+    "years": 2,
+    "direction": 1,
+    "magnitude": 0.000517,
+    "prob_up": 0.5057,
+    "model_version_id": "20260207_105106",
+    "recorded_at": "2026-02-07T10:58:04.706465"
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-07",
+    "years": 3,
+    "direction": 0,
+    "magnitude": -0.126518,
+    "prob_up": 0.4639,
+    "model_version_id": "20260207_105222",
+    "recorded_at": "2026-02-07T10:58:04.793741"
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.089355,
+    "prob_up": 0.5058,
+    "model_version_id": "20260207_105238",
+    "recorded_at": "2026-02-07T10:58:04.902199"
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-07",
+    "years": 2,
+    "direction": 1,
+    "magnitude": 0.035284,
+    "prob_up": 0.4839,
+    "model_version_id": "20260207_105333",
+    "recorded_at": "2026-02-07T10:58:04.981128"
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-07",
+    "years": 3,
+    "direction": 0,
+    "magnitude": -0.043273,
+    "prob_up": 0.4105,
+    "model_version_id": "20260207_105532",
+    "recorded_at": "2026-02-07T10:58:05.072228"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 1,
+    "magnitude": 0.116078,
+    "prob_up": 0.5282,
+    "model_version_id": "20260207_105606",
+    "recorded_at": "2026-02-07T10:58:05.162677"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-07",
+    "years": 2,
+    "direction": 0,
+    "magnitude": -0.144079,
+    "prob_up": 0.5435,
+    "model_version_id": "20260207_105705",
+    "recorded_at": "2026-02-07T10:58:05.248352"
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-07",
+    "years": 3,
+    "direction": 0,
+    "magnitude": -0.105537,
+    "prob_up": 0.5109,
+    "model_version_id": "20260207_105757",
+    "recorded_at": "2026-02-07T10:58:05.334491"
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.061702,
+    "prob_up": 0.3197,
+    "model_version_id": "20260207_120948",
+    "recorded_at": "2026-02-07T12:10:41.530578",
+    "magnitude_5": [
+      -0.01229824312031269,
+      -0.01642904244363308,
+      -0.03194567188620567,
+      -0.012079114094376564,
+      0.009920619428157806
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.055998,
+    "prob_up": 0.4125,
+    "model_version_id": "20260207_121429",
+    "recorded_at": "2026-02-07T12:14:47.768235",
+    "magnitude_5": [
+      -0.005618674214929342,
+      -0.018295805901288986,
+      -0.03191244229674339,
+      -0.01327567733824253,
+      0.012345549650490284
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.051113,
+    "prob_up": 0.467,
+    "model_version_id": "20260207_121727",
+    "recorded_at": "2026-02-07T12:17:44.734551",
+    "magnitude_5": [
+      -0.0026147556491196156,
+      -0.023443227633833885,
+      -0.029541272670030594,
+      -0.012258308008313179,
+      0.01632760278880596
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 1,
+    "magnitude": 0.08439,
+    "prob_up": 0.6859,
+    "model_version_id": "20260207_122030",
+    "recorded_at": "2026-02-07T12:21:45.098807",
+    "magnitude_5": [
+      0.014433246105909348,
+      0.014872439205646515,
+      0.005257816519588232,
+      0.017418265342712402,
+      0.029848774895071983
+    ]
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.158999,
+    "prob_up": 0.0709,
+    "model_version_id": "20260207_122122",
+    "recorded_at": "2026-02-07T12:21:45.190488",
+    "magnitude_5": [
+      -0.004006397910416126,
+      -0.08965227007865906,
+      -0.07547061145305634,
+      0.005274948664009571,
+      -0.0020077298395335674
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 1,
+    "magnitude": 0.08439,
+    "prob_up": 0.6859,
+    "model_version_id": "20260207_122030",
+    "recorded_at": "2026-02-07T12:23:23.674827",
+    "magnitude_5": [
+      0.014433246105909348,
+      0.014872439205646515,
+      0.005257816519588232,
+      0.017418265342712402,
+      0.029848774895071983
+    ]
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.158999,
+    "prob_up": 0.0709,
+    "model_version_id": "20260207_122122",
+    "recorded_at": "2026-02-07T12:23:23.767416",
+    "magnitude_5": [
+      -0.004006397910416126,
+      -0.08965227007865906,
+      -0.07547061145305634,
+      0.005274948664009571,
+      -0.0020077298395335674
+    ]
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 1,
+    "magnitude": 0.007611,
+    "prob_up": 0.5222,
+    "model_version_id": "20260207_122156",
+    "recorded_at": "2026-02-07T12:23:23.867458",
+    "magnitude_5": [
+      0.010296541266143322,
+      0.002450070343911648,
+      -0.0075105889700353146,
+      -0.005726597737520933,
+      0.008206764236092567
+    ]
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.127559,
+    "prob_up": 0.1135,
+    "model_version_id": "20260207_122231",
+    "recorded_at": "2026-02-07T12:23:23.963017",
+    "magnitude_5": [
+      0.0028173779137432575,
+      -0.0451059564948082,
+      -0.048040587455034256,
+      -0.023620303720235825,
+      -0.019783789291977882
+    ]
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.186579,
+    "prob_up": 0.0249,
+    "model_version_id": "20260207_122306",
+    "recorded_at": "2026-02-07T12:23:24.057174",
+    "magnitude_5": [
+      -0.038163356482982635,
+      -0.05443139374256134,
+      -0.028337983414530754,
+      -0.02949465624988079,
+      -0.051564328372478485
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.051113,
+    "prob_up": 0.467,
+    "model_version_id": "20260207_122518",
+    "recorded_at": "2026-02-07T12:25:54.017641",
+    "magnitude_5": [
+      -0.0026147556491196156,
+      -0.023443227633833885,
+      -0.029541272670030594,
+      -0.012258308008313179,
+      0.01632760278880596
+    ]
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.179814,
+    "prob_up": 0.0377,
+    "model_version_id": "20260207_122537",
+    "recorded_at": "2026-02-07T12:25:54.111106",
+    "magnitude_5": [
+      -0.012448299676179886,
+      -0.10508990287780762,
+      -0.08067237585783005,
+      0.0050914715975522995,
+      0.004377936944365501
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.051113,
+    "prob_up": 0.467,
+    "model_version_id": "20260207_122952",
+    "recorded_at": "2026-02-07T12:31:00.013109",
+    "magnitude_5": [
+      -0.0026147556491196156,
+      -0.023443227633833885,
+      -0.029541272670030594,
+      -0.012258308008313179,
+      0.01632760278880596
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 1,
+    "magnitude": 0.042679,
+    "prob_up": 0.649,
+    "model_version_id": "20260207_123143",
+    "recorded_at": "2026-02-07T12:32:08.389047",
+    "magnitude_5": [
+      -0.049384985119104385,
+      -0.04323628172278404,
+      0.040956392884254456,
+      0.05721348896622658,
+      0.04170847684144974
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.051113,
+    "prob_up": 0.467,
+    "model_version_id": "20260207_123740",
+    "recorded_at": "2026-02-07T12:37:51.734988",
+    "magnitude_5": [
+      -0.0026147556491196156,
+      -0.023443227633833885,
+      -0.029541272670030594,
+      -0.012258308008313179,
+      0.01632760278880596
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.051113,
+    "prob_up": 0.467,
+    "model_version_id": "20260207_123740",
+    "recorded_at": "2026-02-07T13:28:01.550925",
+    "magnitude_5": [
+      -0.0026147556491196156,
+      -0.023443227633833885,
+      -0.029541272670030594,
+      -0.012258308008313179,
+      0.01632760278880596
+    ]
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.179814,
+    "prob_up": 0.0377,
+    "model_version_id": "20260207_132123",
+    "recorded_at": "2026-02-07T13:28:01.638411",
+    "magnitude_5": [
+      -0.012448299676179886,
+      -0.10508990287780762,
+      -0.08067237585783005,
+      0.0050914715975522995,
+      0.004377936944365501
+    ]
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 1,
+    "magnitude": 0.024319,
+    "prob_up": 0.5351,
+    "model_version_id": "20260207_132156",
+    "recorded_at": "2026-02-07T13:28:01.730567",
+    "magnitude_5": [
+      0.002762877382338047,
+      -0.0025449430104345083,
+      0.012949495576322079,
+      -0.0016806753119453788,
+      0.012713412754237652
+    ]
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.174281,
+    "prob_up": 0.0369,
+    "model_version_id": "20260207_132228",
+    "recorded_at": "2026-02-07T13:28:01.817683",
+    "magnitude_5": [
+      -0.03582686558365822,
+      -0.05258019268512726,
+      -0.03540792688727379,
+      -0.03146897628903389,
+      -0.03244049474596977
+    ]
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.191925,
+    "prob_up": 0.0166,
+    "model_version_id": "20260207_132302",
+    "recorded_at": "2026-02-07T13:28:01.908430",
+    "magnitude_5": [
+      -0.0425376296043396,
+      -0.04958488792181015,
+      -0.03338039666414261,
+      -0.03623856604099274,
+      -0.046783484518527985
+    ]
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.089114,
+    "prob_up": 0.0752,
+    "model_version_id": "20260207_132335",
+    "recorded_at": "2026-02-07T13:28:01.997787",
+    "magnitude_5": [
+      -0.033179450780153275,
+      -0.018371546640992165,
+      0.0053381845355033875,
+      -0.030252588912844658,
+      -0.01553475670516491
+    ]
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 1,
+    "magnitude": 0.046643,
+    "prob_up": 0.5931,
+    "model_version_id": "20260207_132711",
+    "recorded_at": "2026-02-07T13:28:02.087816",
+    "magnitude_5": [
+      0.024729488417506218,
+      0.005671290215104818,
+      0.0012809117324650288,
+      0.005879414267838001,
+      0.008396425284445286
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.051113,
+    "prob_up": 0.467,
+    "model_version_id": "20260207_141907",
+    "recorded_at": "2026-02-07T14:22:30.030309",
+    "magnitude_5": [
+      -0.0026147556491196156,
+      -0.023443227633833885,
+      -0.029541272670030594,
+      -0.012258308008313179,
+      0.01632760278880596
+    ]
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.179814,
+    "prob_up": 0.0377,
+    "model_version_id": "20260207_141925",
+    "recorded_at": "2026-02-07T14:22:30.100723",
+    "magnitude_5": [
+      -0.012448299676179886,
+      -0.10508990287780762,
+      -0.08067237585783005,
+      0.0050914715975522995,
+      0.004377936944365501
+    ]
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 1,
+    "magnitude": 0.024319,
+    "prob_up": 0.5351,
+    "model_version_id": "20260207_142000",
+    "recorded_at": "2026-02-07T14:22:30.178475",
+    "magnitude_5": [
+      0.002762877382338047,
+      -0.0025449430104345083,
+      0.012949495576322079,
+      -0.0016806753119453788,
+      0.012713412754237652
+    ]
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.174281,
+    "prob_up": 0.0369,
+    "model_version_id": "20260207_142035",
+    "recorded_at": "2026-02-07T14:22:30.265656",
+    "magnitude_5": [
+      -0.03582686558365822,
+      -0.05258019268512726,
+      -0.03540792688727379,
+      -0.03146897628903389,
+      -0.03244049474596977
+    ]
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.191925,
+    "prob_up": 0.0166,
+    "model_version_id": "20260207_142110",
+    "recorded_at": "2026-02-07T14:22:30.352942",
+    "magnitude_5": [
+      -0.0425376296043396,
+      -0.04958488792181015,
+      -0.03338039666414261,
+      -0.03623856604099274,
+      -0.046783484518527985
+    ]
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.089114,
+    "prob_up": 0.0752,
+    "model_version_id": "20260207_142143",
+    "recorded_at": "2026-02-07T14:22:30.430851",
+    "magnitude_5": [
+      -0.033179450780153275,
+      -0.018371546640992165,
+      0.0053381845355033875,
+      -0.030252588912844658,
+      -0.01553475670516491
+    ]
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 1,
+    "magnitude": 0.046643,
+    "prob_up": 0.5931,
+    "model_version_id": "20260207_142211",
+    "recorded_at": "2026-02-07T14:22:30.518469",
+    "magnitude_5": [
+      0.024729488417506218,
+      0.005671290215104818,
+      0.0012809117324650288,
+      0.005879414267838001,
+      0.008396425284445286
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.051113,
+    "prob_up": 0.467,
+    "model_version_id": "20260207_154706",
+    "recorded_at": "2026-02-07T15:48:02.188237",
+    "magnitude_5": [
+      -0.0026147556491196156,
+      -0.023443227633833885,
+      -0.029541272670030594,
+      -0.012258308008313179,
+      0.01632760278880596
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.051113,
+    "prob_up": 0.467,
+    "model_version_id": "20260207_155103",
+    "recorded_at": "2026-02-07T15:59:27.343493",
+    "magnitude_5": [
+      -0.0026147556491196156,
+      -0.023443227633833885,
+      -0.029541272670030594,
+      -0.012258308008313179,
+      0.01632760278880596
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 1,
+    "magnitude": 0.036271,
+    "prob_up": 0.6075,
+    "model_version_id": "20260207_160150",
+    "recorded_at": "2026-02-07T16:03:09.833293",
+    "magnitude_5": [
+      -0.009068954735994339,
+      -0.008567813783884048,
+      0.014460079371929169,
+      0.02419331669807434,
+      0.015196200460195541
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.051113,
+    "prob_up": 0.467,
+    "model_version_id": "20260207_160529",
+    "recorded_at": "2026-02-07T16:06:37.588211",
+    "magnitude_5": [
+      -0.0026147556491196156,
+      -0.023443227633833885,
+      -0.029541272670030594,
+      -0.012258308008313179,
+      0.01632760278880596
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.051113,
+    "prob_up": 0.467,
+    "model_version_id": "20260207_160529",
+    "recorded_at": "2026-02-07T16:07:00.334835",
+    "magnitude_5": [
+      -0.0026147556491196156,
+      -0.023443227633833885,
+      -0.029541272670030594,
+      -0.012258308008313179,
+      0.01632760278880596
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.051113,
+    "prob_up": 0.467,
+    "model_version_id": "20260207_160853",
+    "recorded_at": "2026-02-07T16:10:22.833879",
+    "magnitude_5": [
+      -0.0026147556491196156,
+      -0.023443227633833885,
+      -0.029541272670030594,
+      -0.012258308008313179,
+      0.01632760278880596
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.051113,
+    "prob_up": 0.467,
+    "model_version_id": "20260207_161128",
+    "recorded_at": "2026-02-07T16:11:47.688858",
+    "magnitude_5": [
+      -0.0026147556491196156,
+      -0.023443227633833885,
+      -0.029541272670030594,
+      -0.012258308008313179,
+      0.01632760278880596
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.051113,
+    "prob_up": 0.467,
+    "model_version_id": "20260207_161300",
+    "recorded_at": "2026-02-07T16:13:23.353902",
+    "magnitude_5": [
+      -0.0026147556491196156,
+      -0.023443227633833885,
+      -0.029541272670030594,
+      -0.012258308008313179,
+      0.01632760278880596
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.051113,
+    "prob_up": 0.467,
+    "model_version_id": "20260207_161505",
+    "recorded_at": "2026-02-07T16:15:35.459395",
+    "magnitude_5": [
+      -0.0026147556491196156,
+      -0.023443227633833885,
+      -0.029541272670030594,
+      -0.012258308008313179,
+      0.01632760278880596
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.051113,
+    "prob_up": 0.467,
+    "model_version_id": "20260207_161505",
+    "recorded_at": "2026-02-07T16:24:08.941645",
+    "magnitude_5": [
+      -0.0026147556491196156,
+      -0.023443227633833885,
+      -0.029541272670030594,
+      -0.012258308008313179,
+      0.01632760278880596
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.051113,
+    "prob_up": 0.467,
+    "model_version_id": "20260207_161505",
+    "recorded_at": "2026-02-07T16:28:56.899216",
+    "magnitude_5": [
+      -0.0026147556491196156,
+      -0.023443227633833885,
+      -0.029541272670030594,
+      -0.012258308008313179,
+      0.01632760278880596
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.051113,
+    "prob_up": 0.467,
+    "model_version_id": "20260207_162944",
+    "recorded_at": "2026-02-07T16:31:37.501998",
+    "magnitude_5": [
+      -0.0026147556491196156,
+      -0.023443227633833885,
+      -0.029541272670030594,
+      -0.012258308008313179,
+      0.01632760278880596
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.051113,
+    "prob_up": 0.467,
+    "model_version_id": "20260207_162944",
+    "recorded_at": "2026-02-07T16:32:11.683615",
+    "magnitude_5": [
+      -0.0026147556491196156,
+      -0.023443227633833885,
+      -0.029541272670030594,
+      -0.012258308008313179,
+      0.01632760278880596
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.051113,
+    "prob_up": 0.467,
+    "model_version_id": "20260207_162944",
+    "recorded_at": "2026-02-07T16:34:26.190001",
+    "magnitude_5": [
+      -0.0026147556491196156,
+      -0.023443227633833885,
+      -0.029541272670030594,
+      -0.012258308008313179,
+      0.01632760278880596
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.051113,
+    "prob_up": 0.467,
+    "model_version_id": "20260207_163832",
+    "recorded_at": "2026-02-07T16:43:21.309224",
+    "magnitude_5": [
+      -0.0026147556491196156,
+      -0.023443227633833885,
+      -0.029541272670030594,
+      -0.012258308008313179,
+      0.01632760278880596
+    ]
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.179814,
+    "prob_up": 0.0377,
+    "model_version_id": "20260207_163849",
+    "recorded_at": "2026-02-07T16:43:21.394624",
+    "magnitude_5": [
+      -0.012448299676179886,
+      -0.10508990287780762,
+      -0.08067237585783005,
+      0.0050914715975522995,
+      0.004377936944365501
+    ]
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 1,
+    "magnitude": 0.024319,
+    "prob_up": 0.5351,
+    "model_version_id": "20260207_163921",
+    "recorded_at": "2026-02-07T16:43:21.484788",
+    "magnitude_5": [
+      0.002762877382338047,
+      -0.0025449430104345083,
+      0.012949495576322079,
+      -0.0016806753119453788,
+      0.012713412754237652
+    ]
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.174281,
+    "prob_up": 0.0369,
+    "model_version_id": "20260207_163954",
+    "recorded_at": "2026-02-07T16:43:21.574146",
+    "magnitude_5": [
+      -0.03582686558365822,
+      -0.05258019268512726,
+      -0.03540792688727379,
+      -0.03146897628903389,
+      -0.03244049474596977
+    ]
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.191925,
+    "prob_up": 0.0166,
+    "model_version_id": "20260207_164026",
+    "recorded_at": "2026-02-07T16:43:21.661579",
+    "magnitude_5": [
+      -0.0425376296043396,
+      -0.04958488792181015,
+      -0.03338039666414261,
+      -0.03623856604099274,
+      -0.046783484518527985
+    ]
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.089114,
+    "prob_up": 0.0752,
+    "model_version_id": "20260207_164059",
+    "recorded_at": "2026-02-07T16:43:21.747694",
+    "magnitude_5": [
+      -0.033179450780153275,
+      -0.018371546640992165,
+      0.0053381845355033875,
+      -0.030252588912844658,
+      -0.01553475670516491
+    ]
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 1,
+    "magnitude": 0.046643,
+    "prob_up": 0.5931,
+    "model_version_id": "20260207_164127",
+    "recorded_at": "2026-02-07T16:43:21.828513",
+    "magnitude_5": [
+      0.024729488417506218,
+      0.005671290215104818,
+      0.0012809117324650288,
+      0.005879414267838001,
+      0.008396425284445286
+    ]
+  },
+  {
+    "symbol": "000901",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.051113,
+    "prob_up": 0.467,
+    "model_version_id": "20260207_163832",
+    "recorded_at": "2026-02-07T17:06:54.523722",
+    "magnitude_5": [
+      -0.0026147556491196156,
+      -0.023443227633833885,
+      -0.029541272670030594,
+      -0.012258308008313179,
+      0.01632760278880596
+    ]
+  },
+  {
+    "symbol": "09678.HK",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.179814,
+    "prob_up": 0.0377,
+    "model_version_id": "20260207_163849",
+    "recorded_at": "2026-02-07T17:06:54.616807",
+    "magnitude_5": [
+      -0.012448299676179886,
+      -0.10508990287780762,
+      -0.08067237585783005,
+      0.0050914715975522995,
+      0.004377936944365501
+    ]
+  },
+  {
+    "symbol": "300024",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 1,
+    "magnitude": 0.024319,
+    "prob_up": 0.5351,
+    "model_version_id": "20260207_163921",
+    "recorded_at": "2026-02-07T17:06:54.712058",
+    "magnitude_5": [
+      0.002762877382338047,
+      -0.0025449430104345083,
+      0.012949495576322079,
+      -0.0016806753119453788,
+      0.012713412754237652
+    ]
+  },
+  {
+    "symbol": "300785",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.174281,
+    "prob_up": 0.0369,
+    "model_version_id": "20260207_163954",
+    "recorded_at": "2026-02-07T17:06:54.806647",
+    "magnitude_5": [
+      -0.03582686558365822,
+      -0.05258019268512726,
+      -0.03540792688727379,
+      -0.03146897628903389,
+      -0.03244049474596977
+    ]
+  },
+  {
+    "symbol": "601212",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.191925,
+    "prob_up": 0.0166,
+    "model_version_id": "20260207_164026",
+    "recorded_at": "2026-02-07T17:06:54.894475",
+    "magnitude_5": [
+      -0.0425376296043396,
+      -0.04958488792181015,
+      -0.03338039666414261,
+      -0.03623856604099274,
+      -0.046783484518527985
+    ]
+  },
+  {
+    "symbol": "688158",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 0,
+    "magnitude": -0.089114,
+    "prob_up": 0.0752,
+    "model_version_id": "20260207_164059",
+    "recorded_at": "2026-02-07T17:06:54.977801",
+    "magnitude_5": [
+      -0.033179450780153275,
+      -0.018371546640992165,
+      0.0053381845355033875,
+      -0.030252588912844658,
+      -0.01553475670516491
+    ]
+  },
+  {
+    "symbol": "688256",
+    "predict_date": "2026-02-07",
+    "years": 1,
+    "direction": 1,
+    "magnitude": 0.046643,
+    "prob_up": 0.5931,
+    "model_version_id": "20260207_164127",
+    "recorded_at": "2026-02-07T17:06:55.064047",
+    "magnitude_5": [
+      0.024729488417506218,
+      0.005671290215104818,
+      0.0012809117324650288,
+      0.005879414267838001,
+      0.008396425284445286
+    ]
   }
 ]

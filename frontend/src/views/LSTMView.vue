@@ -21,6 +21,15 @@
           </template>
           <div class="table-toolbar">
             <div class="toolbar-group">
+              <span class="toolbar-label">训练年份</span>
+              <el-select v-model="trainForm.trainYears" size="small" class="train-years-select" placeholder="选择年份">
+                <el-option label="全部 (1+2+3 年)" value="all" />
+                <el-option label="仅 1 年" :value="1" />
+                <el-option label="仅 2 年" :value="2" />
+                <el-option label="仅 3 年" :value="3" />
+              </el-select>
+            </div>
+            <div class="toolbar-group">
               <el-button type="primary" size="small" :loading="trainSelectedLoading" :disabled="!selectedTrainRows.length || trainAllLoading" @click="handleTrainSelected">
                 训练选中 ({{ selectedTrainRows.length }})
               </el-button>
@@ -29,6 +38,16 @@
               </el-button>
               <el-button type="warning" size="small" plain :loading="clearTrainingLoading" :disabled="!selectedTrainRows.length || trainAllLoading" @click="handleClearTraining">
                 清理选中训练数据
+              </el-button>
+              <el-button
+                v-if="trainingSymbols.length || trainAllLoading"
+                type="danger"
+                size="small"
+                plain
+                :disabled="stopTrainingLoading"
+                @click="handleStopTraining"
+              >
+                停止训练
               </el-button>
             </div>
             <span v-if="trainAllLoading && trainAllProgress.total" class="train-all-progress">
@@ -52,6 +71,14 @@
             <el-table-column label="最后一次训练" width="165">
               <template #default="{ row }">{{ row.last_train || '—' }}</template>
             </el-table-column>
+            <el-table-column label="已训年份" width="88" title="1/2/3 年是否齐全">
+              <template #default="{ row }">
+                <span v-if="(row.trained_years || []).length">{{ (row.trained_years || []).join('、') }} 年</span>
+                <span v-else>—</span>
+                <el-tag v-if="hasAllThreeYearsTrained(row.trained_years)" type="success" size="small">齐</el-tag>
+                <el-tag v-else-if="(row.trained_years || []).length" type="warning" size="small">缺</el-tag>
+              </template>
+            </el-table-column>
             <el-table-column label="版本" width="130" show-overflow-tooltip>
               <template #default="{ row }">{{ row.result?.metadata?.version_id ?? '—' }}</template>
             </el-table-column>
@@ -66,6 +93,20 @@
             </el-table-column>
             <el-table-column label="MSE" width="88">
               <template #default="{ row }">{{ row.result?.metrics?.mse != null ? row.result.metrics.mse.toFixed(4) : '—' }}</template>
+            </el-table-column>
+            <el-table-column label="诊断" width="80" align="center">
+              <template #default="{ row }">
+                <el-tooltip v-if="row.result?.diagnostics && Object.keys(row.result.diagnostics).length" placement="top" :show-after="300">
+                  <template #content>
+                    <div class="diagnostics-tooltip">
+                      <div v-for="([key, msg]) in diagnosticsOrdered(row.result.diagnostics)" :key="key" class="diagnostics-tooltip-item">{{ msg }}</div>
+                    </div>
+                  </template>
+                  <el-tag v-if="hasDiagnosticsRisk(row.result.diagnostics)" type="warning" size="small">有风险</el-tag>
+                  <el-tag v-else type="info" size="small">正常</el-tag>
+                </el-tooltip>
+                <span v-else>—</span>
+              </template>
             </el-table-column>
             <el-table-column label="状态" width="100">
               <template #default="{ row }">
@@ -90,29 +131,66 @@
             <div class="card-header-inner">
               <div>
                 <span class="card-header-title">预测</span>
-                <span class="card-header-desc">使用指定年份模型对股票进行涨跌预测</span>
+                <span class="card-header-desc">默认使用 1/2/3 年模型分别预测并记录；展开行可查看预测详情与拟合曲线</span>
               </div>
+              <el-button size="small" class="plot-refresh-btn" @click="refreshPlotUrl">刷新曲线</el-button>
             </div>
           </template>
           <div class="predict-toolbar">
-            <div class="toolbar-group">
-              <span class="toolbar-label">预测模型</span>
-              <el-radio-group v-model="predictYears" size="small" class="predict-years-radio">
-                <el-radio-button :label="1">1 年</el-radio-button>
-                <el-radio-button :label="2">2 年</el-radio-button>
-                <el-radio-button :label="3">3 年</el-radio-button>
-              </el-radio-group>
-            </div>
             <div class="toolbar-group">
               <el-checkbox v-model="predictUseFallback" size="small">LSTM 不可用时回退</el-checkbox>
               <el-checkbox v-model="predictTriggerTrainAsync" size="small">预测后触发训练</el-checkbox>
             </div>
             <div class="toolbar-group">
               <el-button type="primary" size="small" :loading="predictAllLoading" @click="handlePredictAll">预测全部</el-button>
-              <span class="hint-inline">点击行内「预测」可对单只股票预测</span>
+              <span class="hint-inline">点击行内「预测」可对单只股票预测；点击行首展开箭头查看拟合曲线</span>
             </div>
           </div>
-          <el-table :data="predictResultsByStock" size="small" stripe max-height="360" class="predict-by-stock-table">
+          <el-table :data="predictTableWithExpand" size="small" stripe max-height="420" row-key="symbol" class="predict-by-stock-table predict-expand-table">
+            <el-table-column type="expand">
+              <template #default="{ row }">
+                <div class="expand-row-wrap">
+                  <div
+                    v-for="y in [1, 2, 3]"
+                    :key="y"
+                    class="expand-year-group"
+                  >
+                    <div class="expand-block-title">{{ y }} 年模型 · 预测结果与拟合曲线</div>
+                    <div class="expand-year-content">
+                      <div class="expand-block expand-predict-block">
+                        <div class="expand-block-label">预测结果</div>
+                        <div v-if="(row.resultByYears || {})[y]" class="expand-predict-detail">
+                          <span>方向：<span :class="(row.resultByYears[y].direction === 1) ? 'dir-up' : 'dir-down'">{{ row.resultByYears[y].direction_label ?? (row.resultByYears[y].direction === 1 ? '涨' : '跌') }}</span></span>
+                          <span>预测涨跌幅：{{ formatPct(row.resultByYears[y].magnitude, 4) }}</span>
+                          <span>上涨概率：{{ formatPct(row.resultByYears[y].prob_up) }}</span>
+                          <span>下跌概率：{{ formatPct(row.resultByYears[y].prob_down) }}</span>
+                          <span>来源：{{ row.resultByYears[y].source || 'lstm' }}</span>
+                        </div>
+                        <div v-else class="expand-predict-empty">暂无该年份预测，请点击「预测」执行</div>
+                      </div>
+                      <div class="expand-block expand-curve-block">
+                        <div class="expand-block-label">拟合曲线</div>
+                        <div
+                          v-if="!isYearTrained(row.trained_years, y)"
+                          class="plot-placeholder plot-placeholder-untrained"
+                        >未训练</div>
+                        <div
+                          v-else
+                          class="expand-curve-cell plot-wrap-clickable"
+                          @click="openPlotPreview(row, y)"
+                        >
+                          <LstmFitChart
+                            :symbol="row.symbol"
+                            :years="y"
+                            :refresh-key="plotImageRefreshKey"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </el-table-column>
             <el-table-column prop="displayName" label="股票名称" min-width="100" show-overflow-tooltip />
             <el-table-column prop="symbol" label="代码" width="92" />
             <el-table-column label="方向" width="72">
@@ -148,60 +226,29 @@
           </el-table>
         </el-card>
 
-        <el-card shadow="never" class="form-card section-card plot-section">
-          <template #header>
-            <div class="card-header-inner">
-              <div>
-                <span class="card-header-title">拟合曲线（预测 vs 实际）</span>
-                <span class="card-header-desc">随上方「预测模型」年份（1/2/3 年）切换；按股票展示该年份模型的训练拟合效果</span>
-              </div>
-              <el-button size="small" class="plot-refresh-btn" @click="refreshPlotUrl">刷新</el-button>
-            </div>
-          </template>
-        <div class="plot-cards-grid">
-          <el-card v-for="row in trainTableData" :key="row.symbol" shadow="hover" class="plot-card">
-            <template #header>
-              <span class="plot-card-title">{{ row.displayName || row.symbol }}</span>
-              <span class="plot-card-symbol">{{ row.symbol }}</span>
-            </template>
-            <div
-              class="plot-wrap"
-              :class="{ 'plot-wrap-clickable': !plotErrors[row.symbol] }"
-              @click="!plotErrors[row.symbol] && openPlotPreview(row)"
-            >
-              <img
-                v-if="!plotErrors[row.symbol]"
-                :key="plotImageRefreshKey + row.symbol + predictYears"
-                :src="getPlotUrl(row.symbol)"
-                class="plot-img"
-                alt="预测 vs 实际"
-                @error="setPlotError(row.symbol)"
-              />
-              <div v-else class="plot-placeholder">
-                暂无该股票曲线图，请先训练并勾选「曲线图」
-              </div>
-            </div>
-          </el-card>
-        </div>
-        </el-card>
-
-        <!-- 拟合曲线放大展示 -->
+        <!-- 拟合曲线放大展示：同时展示 1/2/3 年 -->
         <el-dialog
           v-model="plotPreviewVisible"
-          :title="plotPreviewRow ? `${plotPreviewRow.displayName || plotPreviewRow.symbol} - 拟合曲线（预测 vs 实际）` : '拟合曲线'"
-          width="90%"
+          :title="plotPreviewRow ? `${plotPreviewRow.displayName || plotPreviewRow.symbol} - 拟合曲线（1/2/3 年）` : '拟合曲线'"
+          width="92%"
           top="3vh"
           class="plot-preview-dialog"
           destroy-on-close
+          align-center
           @close="plotPreviewRow = null"
         >
-          <div v-if="plotPreviewRow" class="plot-preview-content">
-            <img
-              :key="plotImageRefreshKey + plotPreviewRow.symbol + predictYears"
-              :src="getPlotUrl(plotPreviewRow.symbol)"
-              class="plot-preview-img"
-              alt="预测 vs 实际"
-            />
+          <div v-if="plotPreviewRow" class="plot-preview-content plot-preview-multi">
+            <div v-for="y in [1, 2, 3]" :key="y" class="plot-preview-year-block">
+              <div class="plot-preview-year-label">{{ y }} 年模型</div>
+              <div v-if="!isYearTrained(plotPreviewRow.trained_years, y)" class="plot-placeholder plot-placeholder-untrained">未训练</div>
+              <LstmFitChart
+                v-else
+                :symbol="plotPreviewRow.symbol"
+                :years="y"
+                :refresh-key="plotImageRefreshKey"
+                class="plot-preview-chart"
+              />
+            </div>
           </div>
         </el-dialog>
       </el-tab-pane>
@@ -431,16 +478,19 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import { useStockStore } from '@/stores/stock'
+import LstmFitChart from '@/components/LstmFitChart.vue'
 import {
   apiLstmTrain,
+  apiLstmTrainStop,
   apiLstmTrainAll,
   apiLstmClearTraining,
   apiLstmLastPrediction,
   apiLstmLastPredictions,
   apiLstmPredict,
   apiLstmPredictAll,
+  apiLstmPlotData,
   apiLstmStocksTrainingStatus,
   apiLstmTrainingRuns,
   apiLstmTrainingRunsDedupe,
@@ -452,7 +502,6 @@ import {
   apiLstmMonitoring,
   apiLstmPerformanceDecay,
   apiLstmAlerts,
-  apiLstmPlotUrl,
 } from '@/api/stock'
 
 const route = useRoute()
@@ -462,10 +511,13 @@ const activeTab = ref('train')
 
 // 训练
 const trainForm = ref({
+  trainYears: 'all', // 'all' | 1 | 2 | 3，便于测试时只训单年
   do_cv_tune: true,
-  do_shap: true,
+  do_shap: false,
   do_plot: true,
   fast_training: false,
+  use_improved_training: true,
+  reg_loss_type: 'full',
 })
 const trainTableRef = ref(null)
 const selectedTrainRows = ref([])
@@ -476,6 +528,9 @@ const trainingSymbols = ref([])
 const trainSelectedLoading = ref(false)
 const trainAllLoading = ref(false)
 const trainAllProgress = ref({ current: 0, total: 0, symbol: '', displayName: '' })
+/** 用户点击「停止训练」时置为 true，train-all 循环会在此轮结束后退出 */
+const stopRequested = ref(false)
+const stopTrainingLoading = ref(false)
 const clearTrainingLoading = ref(false)
 const trainingResultsList = ref([])
 
@@ -493,16 +548,23 @@ const mergedTrainTableData = computed(() => {
   })
 })
 
-// 预测（按股票分别展示）
+// 预测（按股票分别展示，表格采用展开行：行下展示预测结果详情与拟合曲线）
 const predictSymbol = ref('')
-const predictYears = ref(3) // 预测使用的模型年份：1 / 2 / 3 年
 const predictUseFallback = ref(false)
 const predictTriggerTrainAsync = ref(false)
 const predicting = ref(false)
 const predictAllLoading = ref(false)
 const predictResultsByStock = ref([])
 const plotImageRefreshKey = ref(0)
-const plotErrors = ref({})
+/** 预测表格数据：合并预测结果与训练状态（trained_years），供展开行内拟合曲线使用 */
+const predictTableWithExpand = computed(() => {
+  const predList = predictResultsByStock.value
+  const trainRows = trainTableData.value
+  return predList.map((p) => ({
+    ...p,
+    trained_years: trainRows.find((r) => r.symbol === p.symbol)?.trained_years ?? [],
+  }))
+})
 const plotPreviewVisible = ref(false)
 const plotPreviewRow = ref(null)
 
@@ -552,17 +614,38 @@ const alertsFired = ref(null)
 
 const errorMessage = ref('')
 
-/** 合并股票列表与训练时间，供训练页表格使用 */
+/** 是否已具备 1/2/3 年全部模型（用于区分部分年份失败的情况） */
+function hasAllThreeYearsTrained(trainedYears) {
+  const ty = Array.isArray(trainedYears) ? trainedYears : []
+  return ty.length === 3 && ty.includes(1) && ty.includes(2) && ty.includes(3)
+}
+
+/** 诊断结果中是否包含风险项（除「诊断摘要」外的项视为风险） */
+function hasDiagnosticsRisk(diagnostics) {
+  if (!diagnostics || typeof diagnostics !== 'object') return false
+  const riskKeys = ['波动率问题', '模型容量', '特征问题', '过度拟合', '输入错误']
+  return riskKeys.some((k) => diagnostics[k])
+}
+
+/** 诊断条目排序：诊断摘要排在最前 */
+function diagnosticsOrdered(diagnostics) {
+  if (!diagnostics || typeof diagnostics !== 'object') return []
+  const entries = Object.entries(diagnostics)
+  return entries.sort((a, b) => (a[0] === '诊断摘要' ? -1 : b[0] === '诊断摘要' ? 1 : 0))
+}
+
+/** 合并股票列表与训练时间、已训练年份，供训练页表格使用 */
 function buildTrainTableData() {
   const files = stockStore.fileList || []
   const statusMap = {}
   for (const s of stocksTrainingStatus.value) {
-    if (s.symbol) statusMap[s.symbol] = { last_train: s.last_train }
+    if (s.symbol) statusMap[s.symbol] = { last_train: s.last_train, trained_years: s.trained_years || [] }
   }
   trainTableData.value = files.map((f) => ({
     symbol: f.filename,
     displayName: f.displayName || f.filename || '',
     last_train: statusMap[f.filename]?.last_train ?? null,
+    trained_years: statusMap[f.filename]?.trained_years ?? [],
   }))
 }
 
@@ -602,8 +685,10 @@ async function handleTrainOne(symbol) {
   const sym = (symbol || '').trim()
   if (!sym) return
   const row = trainTableData.value.find((r) => r.symbol === sym)
-  if (row?.last_train && isTrainTimeToday(row.last_train)) {
-    ElMessage.info(`${row.displayName || sym} 今日已训练过，无需重复训练`)
+  const trainYears = trainForm.value.trainYears
+  const isAllYears = trainYears === 'all'
+  if (isAllYears && hasAllThreeYearsTrained(row?.trained_years)) {
+    ElMessage.info(`${row?.displayName || sym} 1/2/3 年模型已齐全，无需重复训练`)
     return
   }
   setError('')
@@ -614,25 +699,44 @@ async function handleTrainOne(symbol) {
   try {
     const res = await apiLstmTrain({
       symbol: sym,
-      all_years: true,
+      all_years: isAllYears,
+      ...(isAllYears ? {} : { years: Number(trainYears) }),
       do_cv_tune: trainForm.value.do_cv_tune,
       do_shap: trainForm.value.do_shap,
       do_plot: trainForm.value.do_plot,
       fast_training: trainForm.value.fast_training,
+      use_improved_training: trainForm.value.use_improved_training,
+      reg_loss_type: trainForm.value.reg_loss_type,
     })
     if (res.error) {
       trainingResultsList.value = [{ symbol: sym, displayName, error: res.error }, ...trainingResultsList.value.filter((e) => e.symbol !== sym)]
       ElMessage.warning(res.error)
     } else {
       trainingResultsList.value = [{ symbol: sym, displayName, result: res, error: null }, ...trainingResultsList.value.filter((e) => e.symbol !== sym)]
+      const riskKeys = ['波动率问题', '模型容量', '特征问题', '过度拟合', '输入错误']
+      const riskItems = res.diagnostics && riskKeys.filter((k) => res.diagnostics[k]).map((k) => res.diagnostics[k])
+      if (riskItems?.length) {
+        ElNotification({
+          type: 'warning',
+          title: '预测平淡诊断',
+          message: riskItems.join('；'),
+          duration: 8000,
+        })
+      }
     }
     await loadStocksTrainingStatusForTrain(true)
-    ElMessage.success(sym + ' 1/2/3 年训练已全部完成')
+    if (res?.metadata?.training_stopped) {
+      ElMessage.warning('训练已按请求停止，已保存当前进度')
+    } else {
+      ElMessage.success(isAllYears ? sym + ' 1/2/3 年训练已全部完成' : `${sym} ${trainYears} 年模型训练完成`)
+    }
   } catch (e) {
     const msg = e?.data?.error || e?.message || '训练失败'
-    trainingResultsList.value = [{ symbol: sym, displayName, error: msg, result: null }, ...trainingResultsList.value.filter((e) => e.symbol !== sym)]
-    setError(msg)
-    ElMessage.error(msg)
+    const isNetworkError = /socket hang up|fetch failed|network|aborted|ECONNRESET/i.test(String(msg))
+    const hint = isNetworkError ? '（连接中断，训练可能仍在服务端执行，请稍后刷新「训练流水」或重新加载页面查看）' : ''
+    trainingResultsList.value = [{ symbol: sym, displayName, error: msg + hint, result: null }, ...trainingResultsList.value.filter((e) => e.symbol !== sym)]
+    setError(msg + hint)
+    ElMessage.error(msg + hint)
   } finally {
     trainingSymbols.value = trainingSymbols.value.filter((s) => s !== sym)
   }
@@ -646,12 +750,18 @@ async function handleTrainSelected() {
   }
   setError('')
   trainSelectedLoading.value = true
+  stopRequested.value = false
   for (const row of rows) {
+    if (stopRequested.value) break
     await handleTrainOne(row.symbol)
   }
   trainSelectedLoading.value = false
   await loadStocksTrainingStatusForTrain(true)
-  ElMessage.success('选中项训练已全部完成')
+  if (stopRequested.value) {
+    ElMessage.warning('训练已停止')
+  } else {
+    ElMessage.success('选中项训练已全部完成')
+  }
 }
 
 async function handleTrainAll() {
@@ -659,20 +769,32 @@ async function handleTrainAll() {
     ElMessage.warning('当前无股票数据，请先在股票列表或数据管理中添加')
     return
   }
-  const toTrain = trainTableData.value.filter((r) => !r.last_train || !isTrainTimeToday(r.last_train))
+  const trainYears = trainForm.value.trainYears
+  const isAllYears = trainYears === 'all'
+  const toTrain = isAllYears
+    ? trainTableData.value.filter((r) => !hasAllThreeYearsTrained(r.trained_years))
+    : trainTableData.value
   if (toTrain.length === 0) {
-    ElMessage.info('全部股票今日已训练过，无需重复训练')
+    ElMessage.info(isAllYears ? '全部股票 1/2/3 年模型已齐全，无需重复训练' : '当前无股票可训练')
     return
   }
   const total = trainTableData.value.length
-  if (toTrain.length < total) {
-    ElMessage.info(`共 ${total} 只股票，${total - toTrain.length} 只今日已训练已跳过，将训练 ${toTrain.length} 只`)
+  if (isAllYears && toTrain.length < total) {
+    ElMessage.info(`共 ${total} 只股票，${total - toTrain.length} 只 1/2/3 年已齐全已跳过，将训练 ${toTrain.length} 只`)
+  } else if (!isAllYears && toTrain.length > 0) {
+    ElMessage.info(`将仅训练 ${trainYears} 年模型，共 ${toTrain.length} 只股票`)
   }
   setError('')
   trainAllLoading.value = true
+  stopRequested.value = false
   trainAllProgress.value = { current: 0, total: toTrain.length, symbol: '', displayName: '' }
   try {
+    let trained = 0
     for (let i = 0; i < toTrain.length; i++) {
+      if (stopRequested.value) {
+        ElMessage.warning('已停止训练')
+        break
+      }
       const row = toTrain[i]
       trainAllProgress.value = {
         current: i + 1,
@@ -681,16 +803,43 @@ async function handleTrainAll() {
         displayName: row.displayName || row.symbol || '',
       }
       await handleTrainOne(row.symbol)
+      trained++
+      if (stopRequested.value) break
     }
     await loadStocksTrainingStatusForTrain(true)
-    ElMessage.success(`一键训练完成：本次共训练 ${toTrain.length} 只`)
+    if (stopRequested.value) {
+      ElMessage.warning(`训练已停止，已完成 ${trained}/${toTrain.length} 只`)
+    } else {
+      ElMessage.success(`一键训练完成：本次共训练 ${toTrain.length} 只`)
+    }
   } catch (e) {
     const msg = e?.data?.error || e?.message || '一键训练失败'
     setError(msg)
     ElMessage.error(msg)
   } finally {
     trainAllLoading.value = false
+    stopRequested.value = false
     trainAllProgress.value = { current: 0, total: 0, symbol: '', displayName: '' }
+  }
+}
+
+async function handleStopTraining() {
+  stopTrainingLoading.value = true
+  try {
+    if (trainAllLoading.value && trainAllProgress.value.symbol) {
+      const res = await apiLstmTrainStop({ symbol: trainAllProgress.value.symbol })
+      stopRequested.value = true
+      ElMessage.success(res.message || '已请求停止')
+    } else if (trainingSymbols.value.length) {
+      stopRequested.value = true
+      const sym = trainingSymbols.value[0]
+      await apiLstmTrainStop({ symbol: sym })
+      ElMessage.success('已请求停止当前训练')
+    }
+  } catch (e) {
+    ElMessage.error(e?.data?.message || e?.message || '请求停止失败')
+  } finally {
+    stopTrainingLoading.value = false
   }
 }
 
@@ -742,21 +891,22 @@ async function handlePredict() {
   setError('')
   predicting.value = true
   try {
-    const res = await apiLstmPredict(symbol, {
-      years: predictYears.value,
-      use_fallback: predictUseFallback.value,
-      trigger_train_async: predictTriggerTrainAsync.value,
-    })
-    const list = predictResultsByStock.value
-    const idx = list.findIndex((r) => r.symbol === symbol)
-    if (idx >= 0) {
-      list[idx] = { ...list[idx], result: res }
-      predictResultsByStock.value = [...list]
-    } else {
-      const displayName = (trainTableData.value.find((r) => r.symbol === symbol) || {}).displayName || symbol
-      predictResultsByStock.value = [{ symbol, displayName, result: res }, ...list]
+    let res = null
+    for (const y of [1, 2, 3]) {
+      const r = await apiLstmPredict(symbol, {
+        years: y,
+        use_fallback: predictUseFallback.value,
+        trigger_train_async: predictTriggerTrainAsync.value,
+      })
+      if (r && (r.direction != null || r.error)) res = r
     }
-    ElMessage.success('预测完成')
+    if (!res) {
+      ElMessage.warning('预测无结果')
+      predicting.value = false
+      return
+    }
+    await loadPredictionsByStock()
+    ElMessage.success('预测完成（1/2/3 年）')
     plotImageRefreshKey.value = Date.now()
   } catch (e) {
     const msg = e?.data?.error || e?.message || '预测失败'
@@ -776,32 +926,15 @@ async function handlePredictAll() {
   predictAllLoading.value = true
   try {
     const res = await apiLstmPredictAll({
-      years: predictYears.value,
+      all_years: true,
       use_fallback: predictUseFallback.value,
       trigger_train_async: predictTriggerTrainAsync.value,
     })
-    const resultBySymbol = {}
-    for (const item of res.results || []) {
-      if (!item.ok || !item.symbol) continue
-      resultBySymbol[item.symbol] = {
-        symbol: item.symbol,
-        direction: item.direction,
-        direction_label: item.direction_label,
-        magnitude: item.magnitude,
-        prob_up: item.prob_up,
-        prob_down: item.prob_down,
-        source: item.source || 'lstm',
-        model_health: item.model_health,
-      }
-    }
-    predictResultsByStock.value = predictResultsByStock.value.map((r) => ({
-      ...r,
-      result: resultBySymbol[r.symbol] ?? r.result,
-    }))
     const successCount = res.success_count ?? 0
+    if (successCount > 0) await loadPredictionsByStock()
     const failCount = res.fail_count ?? 0
     if (successCount > 0) {
-      ElMessage.success(`预测全部完成：成功 ${successCount} 只，失败 ${failCount} 只`)
+      ElMessage.success(`预测全部完成（1/2/3 年）：成功 ${successCount} 只，失败 ${failCount} 只`)
       plotImageRefreshKey.value = Date.now()
     } else if (failCount > 0) {
       const firstError = (res.results || []).find((r) => r && !r.ok && r.error)?.error || '未知原因'
@@ -819,19 +952,16 @@ async function handlePredictAll() {
   }
 }
 
-function getPlotUrl(symbol) {
-  return apiLstmPlotUrl(symbol, predictYears.value) + '&k=' + plotImageRefreshKey.value
-}
-function setPlotError(symbol) {
-  plotErrors.value = { ...plotErrors.value, [symbol]: true }
+/** 该年份是否已训练（有模型） */
+function isYearTrained(trained_years, y) {
+  return Array.isArray(trained_years) && trained_years.includes(y)
 }
 function refreshPlotUrl() {
-  plotErrors.value = {}
   plotImageRefreshKey.value = Date.now()
 }
 
-function openPlotPreview(row) {
-  if (!row || plotErrors.value[row.symbol]) return
+function openPlotPreview(row, _year) {
+  if (!row) return
   plotPreviewRow.value = row
   plotPreviewVisible.value = true
 }
@@ -847,18 +977,27 @@ async function loadPredictionsByStock() {
     symbol: f.filename,
     displayName: nameMap[f.filename] || f.filename,
     result: null,
+    resultByYears: { 1: null, 2: null, 3: null },
   }))
   try {
     const res = await apiLstmLastPredictions()
     const preds = res.predictions || []
-    const bySymbol = {}
+    const bySymbolYears = {}
     for (const p of preds) {
-      if (p.symbol) bySymbol[p.symbol] = p
+      if (!p.symbol) continue
+      const y = p.years === 1 || p.years === 2 || p.years === 3 ? p.years : 1
+      if (!bySymbolYears[p.symbol]) bySymbolYears[p.symbol] = { 1: null, 2: null, 3: null }
+      bySymbolYears[p.symbol][y] = p
     }
-    predictResultsByStock.value = baseList.map((r) => ({
-      ...r,
-      result: bySymbol[r.symbol] || null,
-    }))
+    predictResultsByStock.value = baseList.map((r) => {
+      const byYears = bySymbolYears[r.symbol] || { 1: null, 2: null, 3: null }
+      const primary = byYears[1]
+      return {
+        ...r,
+        result: primary,
+        resultByYears: byYears,
+      }
+    })
   } catch (_) {
     predictResultsByStock.value = baseList
   }
@@ -893,12 +1032,11 @@ async function loadStocksTrainingStatusForTrain(silent = false) {
   }
 }
 
-/** 用最近一次（或若干次）训练流水填充训练结果列表，作为默认展示。 */
+/** 用每只股票最近一次训练流水填充训练结果列表（刷新后恢复表格中的版本/指标）。dedupe=1 时接口按股票去重返回最新一条。 */
 async function loadLastTrainingResultsIntoList() {
   try {
-    const res = await apiLstmTrainingRuns({ limit: 10, dedupe: 1 })
+    const res = await apiLstmTrainingRuns({ limit: 200, dedupe: 1 })
     const runs = res.runs || []
-    if (!runs.length) return
     const nameMap = {}
     for (const f of stockStore.fileList || []) {
       nameMap[f.filename] = f.displayName || f.filename || ''
@@ -1093,17 +1231,25 @@ watch(
   { immediate: true }
 )
 
-onMounted(async () => {
+/** 刷新后/进入页面时：拉取训练状态（last_train、trained_years）与最近训练结果，恢复表格展示。 */
+async function refreshTrainingStatus() {
   await stockStore.fetchList()
-  buildTrainTableData()
   await loadStocksTrainingStatusForTrain(true)
-  const firstSymbol = route.query.symbol || (stockStore.fileList.length > 0 ? stockStore.fileList[0].filename : '')
+  await loadLastTrainingResultsIntoList()
+}
+
+onMounted(async () => {
+  await refreshTrainingStatus()
+  const firstSymbol = route.query.symbol || (stockStore.fileList?.length > 0 ? stockStore.fileList[0].filename : '')
   predictSymbol.value = firstSymbol
   accuracySymbol.value = firstSymbol
   triggersSymbol.value = firstSymbol
-  await loadLastTrainingResultsIntoList()
   await loadPredictionsByStock()
   refreshPlotUrl()
+})
+
+watch(activeTab, (tab) => {
+  if (tab === 'train') refreshTrainingStatus()
 })
 </script>
 
@@ -1187,9 +1333,6 @@ h1 {
   color: #909399;
   margin-right: 4px;
 }
-.predict-years-radio {
-  margin-right: 8px;
-}
 .hint-inline {
   font-size: 12px;
   color: #909399;
@@ -1213,6 +1356,28 @@ h1 {
 .error-msg {
   font-size: 12px;
   color: #f56c6c;
+}
+.diagnostics-tooltip {
+  max-width: 320px;
+  font-size: 12px;
+}
+.diagnostics-tooltip-item {
+  margin-bottom: 4px;
+  line-height: 1.4;
+}
+.diagnostics-tooltip-item:last-child {
+  margin-bottom: 0;
+}
+.config-label {
+  font-size: 12px;
+  color: #909399;
+  margin-right: 4px;
+}
+.config-select {
+  width: 200px;
+}
+.train-years-select {
+  width: 140px;
 }
 .train-all-btn {
   margin-left: 12px;
@@ -1250,7 +1415,7 @@ h1 {
 }
 .plot-cards-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(520px, 1fr));
   gap: 16px;
   margin-bottom: 20px;
 }
@@ -1278,6 +1443,22 @@ h1 {
 .plot-card :deep(.el-card__body) {
   padding: 10px 14px;
 }
+.plot-years-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 0;
+  flex-wrap: wrap;
+}
+.plot-year-cell {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+.plot-year-label {
+  font-size: 12px;
+  color: #909399;
+  margin-bottom: 4px;
+}
 .plot-wrap {
   margin-top: 0;
 }
@@ -1298,6 +1479,15 @@ h1 {
   border-radius: 8px;
   border: 1px dashed #3a3a3a;
 }
+.plot-placeholder-untrained {
+  color: #606266;
+  border-color: #2a2a2a;
+}
+.plot-section-hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #909399;
+}
 .plot-wrap-clickable {
   cursor: pointer;
 }
@@ -1305,16 +1495,56 @@ h1 {
   outline: 2px solid var(--el-color-primary);
   outline-offset: 2px;
 }
+.plot-preview-dialog :deep(.el-dialog) {
+  max-width: 1280px;
+  margin: 0 auto;
+}
 .plot-preview-dialog :deep(.el-dialog__body) {
-  padding: 12px 20px 24px;
-  max-height: 85vh;
-  overflow: auto;
+  padding: 16px 24px 28px;
+  max-height: 82vh;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 .plot-preview-content {
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  min-height: 200px;
+  min-height: 240px;
+}
+.plot-preview-content.plot-preview-multi {
+  flex-direction: column;
+  gap: 28px;
+}
+.plot-preview-year-block {
+  width: 100%;
+  padding: 16px 20px;
+  background: var(--el-fill-color-lighter);
+  border-radius: 12px;
+  border: 1px solid var(--el-border-color-lighter);
+}
+.plot-preview-year-block:last-child {
+  margin-bottom: 0;
+}
+.plot-preview-year-label {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  color: var(--el-text-color-primary);
+  border-bottom: 1px solid var(--el-border-color-light);
+}
+.plot-preview-chart :deep(.lstm-fit-chart-wrap) {
+  min-height: 720px;
+}
+.plot-preview-chart :deep(.lstm-fit-chart) {
+  height: 720px;
+}
+.plot-preview-year-block .plot-placeholder-untrained {
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
 }
 .plot-preview-img {
   max-width: 100%;
@@ -1328,6 +1558,90 @@ h1 {
 }
 .predict-by-stock-table {
   margin-top: 8px;
+}
+.predict-expand-table :deep(.el-table__expanded-cell) {
+  padding: 12px 16px;
+  background: var(--el-fill-color-light);
+}
+.expand-row-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.expand-block {
+  padding: 10px 12px;
+  background: var(--el-bg-color);
+  border-radius: 8px;
+  border: 1px solid var(--el-border-color-lighter);
+}
+.expand-block-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  margin-bottom: 8px;
+}
+.expand-predict-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  font-size: 13px;
+  color: var(--el-text-color-regular);
+}
+.expand-predict-empty {
+  font-size: 13px;
+  color: #909399;
+}
+.expand-plot-years-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.expand-year-group {
+  margin-bottom: 16px;
+}
+.expand-year-group:last-child {
+  margin-bottom: 0;
+}
+.expand-year-group .expand-block-title {
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--el-text-color-primary);
+}
+.expand-year-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: stretch;
+}
+.expand-predict-block {
+  width: 100%;
+  flex-shrink: 0;
+}
+.expand-curve-block {
+  width: 100%;
+  flex-shrink: 0;
+}
+.expand-block-label {
+  font-size: 12px;
+  color: #909399;
+  margin-bottom: 6px;
+}
+.expand-curve-cell {
+  min-height: 160px;
+  width: 100%;
+}
+.expand-curve-cell :deep(.lstm-fit-chart-wrap),
+.expand-curve-cell :deep(.lstm-fit-chart) {
+  min-height: 160px;
+}
+.expand-plot-year-cell {
+  flex: 1;
+  min-width: 180px;
+  text-align: center;
+}
+.expand-plot-year-cell .plot-year-label {
+  margin-bottom: 4px;
 }
 .predict-result {
   margin-top: 16px;

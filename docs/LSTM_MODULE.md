@@ -23,6 +23,12 @@
 - `torch`、`scikit-learn`、`shap`（可选）、`analysis.technical`、`analysis.arima_model`（回退用）。
 - MySQL：与 `stock_meta` / `stock_daily` 同库，用于训练流水、当前版本、预测日志、准确性回填、训练失败。
 
+### 1.4 训练与架构规格（供 AI 分析）
+
+- **文档**：`docs/LSTM_TRAINING_SPEC.md`（Markdown）、`docs/LSTM_TRAINING_SPEC.json`（机器可读）。
+- **接口**：`GET /api/lstm/training-spec` 返回与 JSON 文件一致的完整规格。
+- **生成**：`from analysis.lstm_spec import generate_training_spec_document; generate_training_spec_document()` 可重新生成上述文档。
+
 ---
 
 ## 二、架构设计
@@ -82,7 +88,7 @@
   - `model_blob`（LONGBLOB：PyTorch state_dict 序列化）
 - **当前版本**：MySQL `lstm_current_version.id=1` 的 `version_id`。
 - **预测/准确性/告警等**：仍为 MySQL 表（lstm_prediction_log、lstm_accuracy_record、lstm_training_run、lstm_training_failure 等）。
-- **拟合曲线图**：存于 MySQL 表 `lstm_plot`（symbol + plot_blob），按股票保存 PNG，不再写本地文件。
+- **拟合曲线**：由前端通过 `GET /api/lstm/plot-data?symbol=&years=1|2|3` 拉取数据，ECharts 实时绘制，不再生成或存储 PNG。
 
 ---
 
@@ -235,10 +241,24 @@ lstm:
 ### 6.1 如何查看训练拟合曲线与预测走势
 
 - **训练拟合曲线（预测 vs 实际）**  
-  在「训练与预测」Tab 底部有卡片 **「训练拟合曲线（按股票，预测 vs 实际）」**。训练时勾选 **「曲线图」** 会生成图并**写入数据库**（表 `lstm_plot`），每股票一图。接口：`GET /api/lstm/plot?symbol=xxx` 从库中读取 PNG；无图时带 `generate=1` 可按需用当前模型生成并入库。
+  在「训练与预测」Tab 底部有卡片 **「训练拟合曲线（按股票，预测 vs 实际）」**。每只股票按 1/2/3 年分别展示，由前端请求 `GET /api/lstm/plot-data?symbol=xxx&years=1|2|3` 获取数据后 ECharts 实时绘制，不生成或存储图片。
 
 - **预测走势（当前预测结果）**  
   同一 Tab 中的 **「预测结果（按股票）」** 表格即预测走势的汇总：每行一只股票，展示 **方向**（涨/跌）、**预测涨跌幅**、**上涨/下跌概率**、**来源**（lstm/arima/technical）。执行「预测全部」或单只「预测」后，该表格会更新；刷新页面后会从接口恢复各股票最近一次预测结果。
+
+### 6.2 价格曲线红蓝线对齐说明（为何可能看起来「错位」）
+
+- **数据含义**  
+  - **蓝线（实际价格）**：每个点 = 某个「5 日窗口」**结束日**的真实收盘价。  
+  - **红线（预测价格）**：同一结束日由「窗口前一日收盘价 × (1 + 该窗口的预测 5 日涨跌幅)」得到，与蓝线**按同一结束日、同一索引一一对应**。
+
+- **红蓝线在同一图上**  
+  后端对每个样本 k 使用同一 `dates_price[k]`（结束日）、同一 `actual_price[k]` 与 `predicted_price[k]`，前端用同一 x 轴绘制，因此**不存在故意的一格错位**。若出现整段横向错位，多为前端传参或 ECharts 系列顺序问题。
+
+- **与上两块图的「错位感」**  
+  - 上方「方向」「5日涨跌幅」的横轴用的是**窗口起始日**（`dates` = y_info.index，即预测发生日）。  
+  - 下方「价格曲线」的横轴用的是**窗口结束日**（`dates_price`），比同一索引的起始日晚约 5 个交易日。  
+  因此**同一索引**在上图是「某日预测」，在下图是「约 5 日后实现」；对比时会有约 5 日的视觉错位，这是设计如此，不是 bug。
 
 ---
 

@@ -1,8 +1,16 @@
 const API_BASE = ''
 
+/** 带超时的 fetch，用于长时间请求（如 LSTM 训练）。timeoutMs 不传则不限时。 */
 async function request(url, options = {}) {
+  const { timeoutMs, ...fetchOptions } = options
+  let controller = null
+  if (timeoutMs != null && timeoutMs > 0) {
+    controller = new AbortController()
+    fetchOptions.signal = controller.signal
+    setTimeout(() => controller.abort(), timeoutMs)
+  }
   const res = await fetch(API_BASE + url, {
-    ...options,
+    ...fetchOptions,
     headers: { 'Content-Type': 'application/json', ...options.headers },
   })
   const data = await res.json().catch(() => ({}))
@@ -127,9 +135,19 @@ export function apiLstmRecommendedRange(query = {}) {
   return request('/api/lstm/recommended-range?' + (params.toString() || 'years=1'))
 }
 
-/** 训练 LSTM 模型。body: { symbol, start?, end?, do_cv_tune?, do_shap?, do_plot?, fast_training? } */
+/** 训练 LSTM 模型（单股 1/2/3 年可能需数分钟）。body: { symbol, all_years?, start?, end?, ... } */
+const LSTM_TRAIN_TIMEOUT_MS = 30 * 60 * 1000 // 30 分钟，避免训练未完成就因超时断开
 export function apiLstmTrain(body) {
   return request('/api/lstm/train', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    timeoutMs: LSTM_TRAIN_TIMEOUT_MS,
+  })
+}
+
+/** 请求停止指定股票正在进行的训练。body: { symbol }。返回 { ok, message } */
+export function apiLstmTrainStop(body) {
+  return request('/api/lstm/train/stop', {
     method: 'POST',
     body: JSON.stringify(body || {}),
   })
@@ -181,19 +199,12 @@ export function apiLstmPredictAll(body = {}) {
   })
 }
 
-/** 训练曲线图 URL（预测 vs 实际）。symbol 必填；years=1|2|3 时按该年份模型生成图；不传 years 时带 generate=1 从库读或按需生成。 */
-export function apiLstmPlotUrl(symbol, years) {
+/** 拟合曲线图数据（预测 vs 实际），供 ECharts 绘制。返回 { dates, actual_dir, pred_dir, actual_mag, pred_mag } */
+export function apiLstmPlotData(symbol, years) {
   const params = new URLSearchParams()
-  params.set('t', String(Date.now()))
-  if (symbol) {
-    params.set('symbol', symbol)
-    if (years === 1 || years === 2 || years === 3) {
-      params.set('years', String(years))
-    } else {
-      params.set('generate', '1')
-    }
-  }
-  return API_BASE + '/api/lstm/plot?' + params.toString()
+  params.set('symbol', symbol)
+  params.set('years', String(years === 1 || years === 2 || years === 3 ? years : 1))
+  return request('/api/lstm/plot-data?' + params.toString())
 }
 
 /** 全部股票及其最后一次训练时间。返回 { stocks: [ { symbol, displayName, last_train } ] } */

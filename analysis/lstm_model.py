@@ -98,7 +98,14 @@ except ImportError:
     _SHAP_AVAILABLE = False
     shap = None  # type: ignore[assignment]
 
-from analysis.lstm_constants import DEFAULT_MODEL_DIR, FORECAST_DAYS
+from analysis.lstm_constants import DEFAULT_MODEL_DIR, FORECAST_DAYS, PREDICTION_OFFSET_DAYS
+from analysis.lstm_losses import get_regression_criterion
+from analysis.lstm_training import DEFAULT_IMPROVED_CONFIG, 改进的训练策略
+from analysis.lstm_volatility_features import (
+    VOLATILITY_FEATURE_NAMES,
+    构建波动增强特征,
+    波动增强特征到数组,
+)
 
 SEQ_LEN = 60
 
@@ -111,7 +118,7 @@ CPU_FRIENDLY_PARAM_GRID = {
     "batch_size": 32,
 }
 CPU_FRIENDLY_CV_SPLITS = 3
-DEFAULT_FEATURE_NAMES = [
+BASE_FEATURE_NAMES = [
     "close_norm",
     "volume_norm",
     "rsi",
@@ -122,6 +129,24 @@ DEFAULT_FEATURE_NAMES = [
     "mfi",
     "aroon_up",
 ]
+DEFAULT_FEATURE_NAMES = BASE_FEATURE_NAMES + VOLATILITY_FEATURE_NAMES
+
+
+def _fit_y_mag_scale(y_mag: np.ndarray) -> tuple[float, float]:
+    """用训练集拟合涨跌幅的均值与标准差，用于标准化。返回 (mean, std)，std 过小则用 1.0。"""
+    mean = float(np.mean(y_mag))
+    std = float(np.std(y_mag))
+    return mean, (std if std >= 1e-8 else 1.0)
+
+
+def _standardize_y_mag(y_mag: np.ndarray, mean: float, std: float) -> np.ndarray:
+    """标准化涨跌幅。"""
+    return ((y_mag - mean) / std).astype(np.float32)
+
+
+def _inverse_standardize_mag(pred: np.ndarray, mean: float, std: float) -> np.ndarray:
+    """将模型输出的标准化预测反变换为原始涨跌幅量纲。"""
+    return (pred * std + mean).astype(np.float64)
 
 
 def _ensure_torch():
@@ -156,6 +181,7 @@ def build_features_from_df(df: pd.DataFrame) -> tuple[np.ndarray, list[str], pd.
     volume = _to_series(df[vol_col].astype(float))
     high = _to_series(df[high_col].astype(float))
     low = _to_series(df[low_col].astype(float))
+    open_ = _to_series(df[open_col].astype(float))
 
     # 技术指标
     rsi = calc_rsi(close, period=14)
@@ -221,37 +247,64 @@ def build_features_from_df(df: pd.DataFrame) -> tuple[np.ndarray, list[str], pd.
     # (n_features, T)
     F = np.stack(feature_list, axis=1)
 
+    # 波动增强特征（缓解预测过度平滑）
+    vol_df = 构建波动增强特征(close, high, low, open_, volume)
+    F_vol, _ = 波动增强特征到数组(vol_df, SEQ_LEN)
+    F = np.hstack([F, F_vol.astype(np.float32)])
+
     X_list = []
     y_direction_list = []
-    y_magnitude_list = []
+    y_magnitude_list = []  # 每个元素为长度 FORECAST_DAYS 的逐日涨跌幅
     end_dates = []
 
     for i in range(SEQ_LEN, n - FORECAST_DAYS):
         X_list.append(F[i - SEQ_LEN : i])  # (SEQ_LEN, n_features)
-        future_ret = (close.iloc[i + FORECAST_DAYS - 1] / close.iloc[i - 1]) - 1.0
-        y_direction_list.append(1 if future_ret > 0 else 0)
-        y_magnitude_list.append(future_ret)
+        # 未来 5 日逐日收益率：ret_d[t] = close[i+t]/close[i+t-1] - 1
+        daily_rets = []
+        for d in range(FORECAST_DAYS):
+            ret_d = (float(close.iloc[i + d]) / float(close.iloc[i + d - 1])) - 1.0
+            daily_rets.append(ret_d)
+        cum_ret = (float(close.iloc[i + FORECAST_DAYS - 1]) / float(close.iloc[i - 1])) - 1.0
+        y_direction_list.append(1 if cum_ret > 0 else 0)
+        y_magnitude_list.append(daily_rets)
         date_val = df["日期"].iloc[i] if "日期" in df.columns else (df.index[i] if hasattr(df.index[i], "strftime") else i)
         end_dates.append(date_val)
 
     X = np.stack(X_list, axis=0).astype(np.float32)
     y_dir = np.array(y_direction_list, dtype=np.int64)
-    y_mag = np.array(y_magnitude_list, dtype=np.float32)
+    y_mag = np.array(y_magnitude_list, dtype=np.float32)  # (N, FORECAST_DAYS)
 
     y_info = pd.Series(
         [
-            {"direction": int(d), "magnitude": float(m), "end_date": str(e)}
+            {"direction": int(d), "magnitude": float((1 + m[0]) * (1 + m[1]) * (1 + m[2]) * (1 + m[3]) * (1 + m[4]) - 1), "end_date": str(e)}
             for d, m, e in zip(y_direction_list, y_magnitude_list, end_dates)
         ],
         index=end_dates,
     )
-    return X, DEFAULT_FEATURE_NAMES.copy(), y_info, y_dir, y_mag
+    feature_names = BASE_FEATURE_NAMES + VOLATILITY_FEATURE_NAMES
+    return X, feature_names, y_info, y_dir, y_mag
 
 
 if _TORCH_AVAILABLE and nn is not None and torch is not None:
 
+    class SeqAttention(nn.Module):
+        """序列注意力：对 seq_len 维做 softmax，得到每个时间步权重。"""
+
+        def __init__(self, hidden_size: int):
+            super().__init__()
+            self.attn = nn.Sequential(
+                nn.Linear(hidden_size, hidden_size),
+                nn.Tanh(),
+                nn.Linear(hidden_size, 1),
+            )
+
+        def forward(self, seq: torch.Tensor) -> torch.Tensor:
+            # seq: (batch, seq_len, hidden_size) -> weights: (batch, seq_len, 1)
+            scores = self.attn(seq)
+            return torch.softmax(scores, dim=1)
+
     class LSTMDualHead(nn.Module):
-        """LSTM + Dropout + 全连接双头（分类 + 回归）。"""
+        """LSTM + Dropout + 全连接双头（分类 + 回归）。回归头可输出多步（如 5 日逐日涨跌幅）。"""
 
         def __init__(
             self,
@@ -260,10 +313,12 @@ if _TORCH_AVAILABLE and nn is not None and torch is not None:
             num_layers: int = 1,
             dropout: float = 0.3,
             num_classes: int = 2,
+            n_magnitude_outputs: int = 5,
         ):
             super().__init__()
             self.hidden_size = hidden_size
             self.num_layers = num_layers
+            self.n_magnitude_outputs = n_magnitude_outputs
             self.lstm = nn.LSTM(
                 input_size,
                 hidden_size,
@@ -274,7 +329,7 @@ if _TORCH_AVAILABLE and nn is not None and torch is not None:
             self.dropout = nn.Dropout(p=dropout)
             self.fc_shared = nn.Linear(hidden_size, hidden_size)
             self.fc_direction = nn.Linear(hidden_size, num_classes)
-            self.fc_magnitude = nn.Linear(hidden_size, 1)
+            self.fc_magnitude = nn.Linear(hidden_size, n_magnitude_outputs)
 
         def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
             # x: (batch, seq_len, input_size)
@@ -282,10 +337,97 @@ if _TORCH_AVAILABLE and nn is not None and torch is not None:
             last_h = lstm_out[:, -1]
             h = self.dropout(torch.relu(self.fc_shared(last_h)))
             direction_logits = self.fc_direction(h)
-            magnitude = self.fc_magnitude(h).squeeze(-1)
+            magnitude = self.fc_magnitude(h)  # (batch, n_magnitude_outputs)
+            if magnitude.shape[-1] == 1:
+                magnitude = magnitude.squeeze(-1)
+            return direction_logits, magnitude
+
+    class LSTMDualHeadEnhanced(nn.Module):
+        """
+        增强 LSTM：双向 LSTM + 注意力 + 跳跃连接 + 更深全连接，输出 (方向 logits, 多步涨跌幅)。
+        """
+
+        def __init__(
+            self,
+            input_size: int,
+            hidden_size: int = 128,
+            num_layers: int = 3,
+            dropout: float = 0.2,
+            num_classes: int = 2,
+            n_magnitude_outputs: int = 5,
+        ):
+            super().__init__()
+            self.hidden_size = hidden_size
+            self.num_layers = num_layers
+            self.n_magnitude_outputs = n_magnitude_outputs
+            self.bidirectional = True
+            hidden_out = hidden_size * 2  # 双向
+
+            self.lstm = nn.LSTM(
+                input_size=input_size,
+                hidden_size=hidden_size,
+                num_layers=num_layers,
+                batch_first=True,
+                dropout=dropout if num_layers > 1 else 0,
+                bidirectional=True,
+            )
+            self.attention = SeqAttention(hidden_out)
+            self.skip_connection = nn.Sequential(
+                nn.Linear(input_size, hidden_out),
+                nn.ReLU(),
+            )
+            self.fc_shared = nn.Sequential(
+                nn.Linear(hidden_out * 2, 256),
+                nn.LayerNorm(256),
+                nn.ReLU(),
+                nn.Dropout(dropout),
+                nn.Linear(256, 128),
+                nn.ReLU(),
+                nn.Dropout(dropout),
+                nn.Linear(128, 64),
+                nn.ReLU(),
+            )
+            self.fc_direction = nn.Linear(64, num_classes)
+            self.fc_magnitude = nn.Linear(64, n_magnitude_outputs)
+            self._init_weights()
+
+        def _init_weights(self) -> None:
+            for name, param in self.lstm.named_parameters():
+                if "weight_ih" in name:
+                    nn.init.xavier_uniform_(param.data)
+                elif "weight_hh" in name:
+                    nn.init.orthogonal_(param.data)
+                elif "bias" in name:
+                    nn.init.constant_(param.data, 0)
+            for m in self.fc_shared:
+                if isinstance(m, nn.Linear):
+                    nn.init.xavier_uniform_(m.weight, gain=1.0)
+                    if m.bias is not None:
+                        nn.init.constant_(m.bias, 0)
+            nn.init.normal_(self.fc_direction.weight, mean=0, std=0.01)
+            nn.init.normal_(self.fc_magnitude.weight, mean=0, std=0.01)
+            if self.fc_direction.bias is not None:
+                nn.init.constant_(self.fc_direction.bias, 0)
+            if self.fc_magnitude.bias is not None:
+                nn.init.constant_(self.fc_magnitude.bias, 0)
+
+        def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+            # x: (batch, seq_len, input_size)
+            lstm_out, _ = self.lstm(x)  # (batch, seq_len, hidden*2)
+            weights = self.attention(lstm_out)  # (batch, seq_len, 1)
+            context = (lstm_out * weights).sum(dim=1)  # (batch, hidden*2)
+            skip = self.skip_connection(x[:, -1, :])  # (batch, hidden*2)
+            combined = torch.cat([context, skip], dim=1)  # (batch, hidden*4)
+            h = self.fc_shared(combined)  # (batch, 64)
+            direction_logits = self.fc_direction(h)
+            magnitude = self.fc_magnitude(h)  # (batch, n_magnitude_outputs)
+            if magnitude.shape[-1] == 1:
+                magnitude = magnitude.squeeze(-1)
             return direction_logits, magnitude
 else:
     LSTMDualHead = None  # type: ignore[misc, assignment]
+    LSTMDualHeadEnhanced = None  # type: ignore[misc, assignment]
+    SeqAttention = None  # type: ignore[misc, assignment]
 
 
 def train_epoch(
@@ -295,6 +437,7 @@ def train_epoch(
     device: torch.device,
     weight_cls: float = 1.0,
     weight_reg: float = 1.0,
+    reg_criterion: Optional[Any] = None,
 ) -> float:
     model.train()
     total_loss = 0.0
@@ -306,7 +449,11 @@ def train_epoch(
         optimizer.zero_grad()
         logits, mag_pred = model(X_b)
         loss_cls = criterion_cls(logits, y_dir_b)
-        loss_reg = nn.functional.mse_loss(mag_pred, y_mag_b)
+        if reg_criterion is None:
+            loss_reg = nn.functional.mse_loss(mag_pred, y_mag_b)
+        else:
+            out = reg_criterion(mag_pred, y_mag_b)
+            loss_reg = out[0] if isinstance(out, tuple) else out
         loss = weight_cls * loss_cls + weight_reg * loss_reg
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
@@ -357,6 +504,7 @@ def cross_validate_and_tune(
     param_grid: Optional[dict[str, Any]] = None,
     device: Optional[torch.device] = None,
     seed: int = 42,
+    reg_loss_type: str = "mse",
 ) -> dict[str, Any]:
     """
     时间序列交叉验证 + 超参数搜索（学习率、隐藏层大小、epochs）。
@@ -379,6 +527,9 @@ def cross_validate_and_tune(
     best_score = -np.inf
     best_params: dict[str, Any] = {}
     cv_results: list[dict[str, Any]] = []
+    reg_criterion = get_regression_criterion(reg_loss_type)
+    if reg_criterion is not None:
+        reg_criterion = reg_criterion.to(device)
 
     for lr in lr_list:
         for hidden in hidden_list:
@@ -399,7 +550,7 @@ def cross_validate_and_tune(
                         torch.from_numpy(y_dir_val),
                         torch.from_numpy(y_mag_val),
                     )
-                    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+                    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=False)  # 时间序列保持顺序
                     val_loader = DataLoader(val_ds, batch_size=batch_size)
 
                     model = LSTMDualHead(
@@ -408,11 +559,12 @@ def cross_validate_and_tune(
                         num_layers=1,
                         dropout=0.3,
                         num_classes=2,
+                        n_magnitude_outputs=FORECAST_DAYS,
                     ).to(device)
                     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
                     for _ in range(epochs):
-                        train_epoch(model, train_loader, optimizer, device)
+                        train_epoch(model, train_loader, optimizer, device, reg_criterion=reg_criterion)
                     metrics = evaluate(model, val_loader, device)
                     fold_metrics.append(metrics)
 
@@ -460,6 +612,10 @@ def train_and_save(
     promote_to_current: bool = True,
     symbol: str = "",
     years: int = 1,
+    use_enhanced_model: bool = True,
+    reg_loss_type: str = "full",
+    use_improved_training: bool = True,
+    stop_event: Optional[Any] = None,
 ) -> tuple[nn.Module, dict[str, Any], dict[str, float]]:
     """
     在全部数据上训练并保存模型与元数据。
@@ -480,38 +636,125 @@ def train_and_save(
         torch.from_numpy(y_direction),
         torch.from_numpy(y_magnitude),
     )
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)  # 时间序列保持顺序
 
-    model = LSTMDualHead(
-        input_size=n_features,
-        hidden_size=hidden_size,
-        num_layers=1,
-        dropout=0.3,
-        num_classes=2,
-    ).to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    if use_enhanced_model and LSTMDualHeadEnhanced is not None:
+        enh_hidden = 128
+        enh_layers = 3
+        model = LSTMDualHeadEnhanced(
+            input_size=n_features,
+            hidden_size=enh_hidden,
+            num_layers=enh_layers,
+            dropout=0.2,
+            num_classes=2,
+            n_magnitude_outputs=FORECAST_DAYS,
+        ).to(device)
+        _hidden_size, _num_layers = enh_hidden, enh_layers
+        _model_type = "enhanced"
+    else:
+        model = LSTMDualHead(
+            input_size=n_features,
+            hidden_size=hidden_size,
+            num_layers=1,
+            dropout=0.3,
+            num_classes=2,
+            n_magnitude_outputs=FORECAST_DAYS,
+        ).to(device)
+        _hidden_size, _num_layers = hidden_size, 1
+        _model_type = "basic"
+    training_loss_history: list[float] = []
+    y_mag_mean: Optional[float] = None
+    y_mag_std: Optional[float] = None
+    if use_improved_training:
+        n_total = len(X)
+        n_val = max(20, int(0.2 * n_total))
+        n_train = n_total - n_val
+        y_mag_train = y_magnitude[:n_train]
+        y_mag_mean, y_mag_std = _fit_y_mag_scale(y_mag_train)
+        y_mag_tr_std = _standardize_y_mag(y_magnitude[:n_train], y_mag_mean, y_mag_std)
+        y_mag_val_std = _standardize_y_mag(y_magnitude[n_train:], y_mag_mean, y_mag_std)
+        train_dataset = TensorDataset(
+            torch.from_numpy(X[:n_train]),
+            torch.from_numpy(y_direction[:n_train]),
+            torch.from_numpy(y_mag_tr_std),
+        )
+        val_dataset = TensorDataset(
+            torch.from_numpy(X[n_train:]),
+            torch.from_numpy(y_direction[n_train:]),
+            torch.from_numpy(y_mag_val_std),
+        )
+        train_loader_split = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)  # 时间序列保持顺序
+        val_loader_split = DataLoader(val_dataset, batch_size=batch_size)
+        improved_config = dict(DEFAULT_IMPROVED_CONFIG)
+        improved_config["max_epochs"] = epochs
+        improved_config["reg_loss_type"] = reg_loss_type
+        _, training_loss_history, _improved_metrics, _best_epoch = 改进的训练策略(
+            model, train_loader_split, val_loader_split, device, improved_config, stop_event=stop_event
+        )
+    else:
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+        reg_criterion = get_regression_criterion(reg_loss_type)
+        if reg_criterion is not None:
+            reg_criterion = reg_criterion.to(device)
+        for _ in range(epochs):
+            if stop_event is not None and stop_event.is_set():
+                break
+            loss = train_epoch(model, loader, optimizer, device, reg_criterion=reg_criterion)
+            training_loss_history.append(loss)
 
-    for _ in range(epochs):
-        train_epoch(model, loader, optimizer, device)
-
-    final_metrics = evaluate(model, DataLoader(dataset, batch_size=batch_size), device)
     model.eval()
     with torch.no_grad():
         logits, mag_pred = model(torch.from_numpy(X).to(device))
         last_dir_pred = logits.argmax(dim=1).cpu().numpy()
-        last_mag_pred = mag_pred.cpu().numpy()
+        mag_pred_np = mag_pred.cpu().numpy()
+    if y_mag_mean is not None and y_mag_std is not None:
+        mag_pred_raw = _inverse_standardize_mag(mag_pred_np, y_mag_mean, y_mag_std)
+        all_mag_true = y_magnitude.flatten() if y_magnitude.ndim > 1 else y_magnitude
+        all_mag_pred_flat = mag_pred_raw.flatten() if mag_pred_raw.ndim > 1 else mag_pred_raw
+        final_metrics = {
+            "accuracy": float(accuracy_score(y_direction, last_dir_pred)),
+            "recall": float(recall_score(y_direction, last_dir_pred, average="binary", zero_division=0)),
+            "f1": float(f1_score(y_direction, last_dir_pred, average="binary", zero_division=0)),
+            "mse": float(mean_squared_error(all_mag_true, all_mag_pred_flat)),
+        }
+        last_mag_flat = mag_pred_raw.flatten() if mag_pred_raw.ndim > 1 else mag_pred_raw
+    else:
+        mag_pred_raw = mag_pred_np
+        final_metrics = evaluate(model, DataLoader(dataset, batch_size=batch_size), device)
+        last_mag_flat = mag_pred_np.flatten() if mag_pred_np.ndim > 1 else mag_pred_np
+    stopped = stop_event is not None and stop_event.is_set()
     metadata = {
         "feature_names": feature_names,
         "seq_len": SEQ_LEN,
         "forecast_days": FORECAST_DAYS,
-        "hidden_size": hidden_size,
+        "n_magnitude_outputs": FORECAST_DAYS,
+        "hidden_size": _hidden_size,
         "n_features": n_features,
+        "num_layers": _num_layers,
+        "model_type": _model_type,
+        "reg_loss_type": reg_loss_type,
+        "use_improved_training": use_improved_training,
         "lr": lr,
         "epochs": epochs,
         "metrics": final_metrics,
         "last_dir_pred": last_dir_pred.tolist(),
-        "last_mag_pred": last_mag_pred.tolist(),
+        "last_mag_pred": last_mag_flat.tolist() if hasattr(last_mag_flat, "tolist") else list(last_mag_flat),
+        "training_loss_history": training_loss_history,
+        "training_stopped": stopped,
     }
+    if y_mag_mean is not None and y_mag_std is not None:
+        metadata["y_mag_mean"] = y_mag_mean
+        metadata["y_mag_std"] = y_mag_std
+    try:
+        from analysis.lstm_diagnostics import 诊断LSTM预测平淡问题
+        训练数据 = {"X": X, "训练损失": training_loss_history}
+        pred_for_diag = mag_pred_raw
+        last_mag_1d = pred_for_diag.mean(axis=1) if pred_for_diag.ndim > 1 else pred_for_diag
+        y_mag_1d = y_magnitude.mean(axis=1) if y_magnitude.ndim > 1 else y_magnitude
+        诊断结果 = 诊断LSTM预测平淡问题(last_mag_1d, y_mag_1d, model, 训练数据)
+        metadata["diagnostics"] = 诊断结果
+    except Exception:
+        pass
     if save_versioned_model is not None:
         version_id = save_versioned_model(
             save_dir,
@@ -559,13 +802,29 @@ def load_model(
 
     n_features = metadata["n_features"]
     hidden_size = metadata["hidden_size"]
-    model = LSTMDualHead(
-        input_size=n_features,
-        hidden_size=hidden_size,
-        num_layers=1,
-        dropout=0.3,
-        num_classes=2,
-    ).to(device)
+    model_type = metadata.get("model_type", "basic")
+    n_mag_out = metadata.get("n_magnitude_outputs", FORECAST_DAYS)
+    if state_dict and "fc_magnitude.weight" in state_dict:
+        n_mag_out = int(state_dict["fc_magnitude.weight"].shape[0])
+    if model_type == "enhanced" and LSTMDualHeadEnhanced is not None:
+        num_layers = metadata.get("num_layers", 3)
+        model = LSTMDualHeadEnhanced(
+            input_size=n_features,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            dropout=0.2,
+            num_classes=2,
+            n_magnitude_outputs=n_mag_out,
+        ).to(device)
+    else:
+        model = LSTMDualHead(
+            input_size=n_features,
+            hidden_size=hidden_size,
+            num_layers=1,
+            dropout=0.3,
+            num_classes=2,
+            n_magnitude_outputs=n_mag_out,
+        ).to(device)
     model.load_state_dict(state_dict)
     return model, metadata
 
@@ -579,6 +838,7 @@ def incremental_train_and_save(
     lr: float = 1e-4,
     batch_size: int = 32,
     device: Optional[torch.device] = None,
+    reg_loss_type: str = "full",
 ) -> dict[str, Any]:
     """
     增量训练：加载当前模型，仅用新数据微调若干 epoch，保存为新版本。
@@ -603,37 +863,64 @@ def incremental_train_and_save(
     data_start = str(dates[0])[:10] if dates else None
     data_end = str(dates[-1])[:10] if dates else None
 
+    inc_y_mean = metadata.get("y_mag_mean")
+    inc_y_std = metadata.get("y_mag_std")
+    if inc_y_mean is not None and inc_y_std is not None:
+        y_mag_train = _standardize_y_mag(y_mag, inc_y_mean, inc_y_std)
+    else:
+        y_mag_train = y_mag
+
     dataset = TensorDataset(
         torch.from_numpy(X),
         torch.from_numpy(y_dir),
-        torch.from_numpy(y_mag),
+        torch.from_numpy(y_mag_train),
     )
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)  # 时间序列保持顺序
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-
+    reg_criterion = get_regression_criterion(reg_loss_type)
+    if reg_criterion is not None:
+        reg_criterion = reg_criterion.to(device)
     for _ in range(epochs):
-        train_epoch(model, loader, optimizer, device)
+        train_epoch(model, loader, optimizer, device, reg_criterion=reg_criterion)
 
-    final_metrics = evaluate(model, DataLoader(dataset, batch_size=batch_size), device)
     model.eval()
     with torch.no_grad():
         logits, mag_pred = model(torch.from_numpy(X).to(device))
         last_dir_pred = logits.argmax(dim=1).cpu().numpy()
-        last_mag_pred = mag_pred.cpu().numpy()
+        mag_pred_np = mag_pred.cpu().numpy()
+    if inc_y_mean is not None and inc_y_std is not None:
+        last_mag_pred = _inverse_standardize_mag(mag_pred_np, inc_y_mean, inc_y_std)
+        all_mag_true = y_mag.flatten() if y_mag.ndim > 1 else y_mag
+        all_mag_pred_flat = last_mag_pred.flatten() if last_mag_pred.ndim > 1 else last_mag_pred
+        final_metrics = {
+            "accuracy": float(accuracy_score(y_dir, last_dir_pred)),
+            "recall": float(recall_score(y_dir, last_dir_pred, average="binary", zero_division=0)),
+            "f1": float(f1_score(y_dir, last_dir_pred, average="binary", zero_division=0)),
+            "mse": float(mean_squared_error(all_mag_true, all_mag_pred_flat)),
+        }
+    else:
+        final_metrics = evaluate(model, DataLoader(dataset, batch_size=batch_size), device)
+        last_mag_pred = mag_pred_np
+    last_mag_flat = last_mag_pred.flatten() if last_mag_pred.ndim > 1 else last_mag_pred
 
     meta = {
         "feature_names": metadata.get("feature_names", feature_names),
         "seq_len": metadata.get("seq_len", SEQ_LEN),
         "forecast_days": metadata.get("forecast_days", FORECAST_DAYS),
         "hidden_size": metadata.get("hidden_size", 64),
+        "num_layers": metadata.get("num_layers", 1),
+        "model_type": metadata.get("model_type", "basic"),
         "n_features": int(X.shape[2]),
         "lr": lr,
         "epochs": epochs,
         "metrics": final_metrics,
         "last_dir_pred": last_dir_pred.tolist(),
-        "last_mag_pred": last_mag_pred.tolist(),
+        "last_mag_pred": last_mag_flat.tolist() if hasattr(last_mag_flat, "tolist") else list(last_mag_flat),
         "training_type": "incremental",
     }
+    if inc_y_mean is not None and inc_y_std is not None:
+        meta["y_mag_mean"] = inc_y_mean
+        meta["y_mag_std"] = inc_y_std
     version_id = None
     if save_versioned_model is not None:
         version_id = save_versioned_model(
@@ -647,7 +934,6 @@ def incremental_train_and_save(
         )
         model.to(device)
 
-    # 拟合曲线图改存数据库，见 run_lstm_pipeline 的 do_plot 与 generate_fit_plot_for_symbol
     return {
         "version_id": version_id,
         "metrics": final_metrics,
@@ -714,136 +1000,111 @@ def compute_feature_importance_and_shap(
     return out
 
 
-def plot_predictions_vs_actual(
-    dates: list[Any],
-    y_true_dir: np.ndarray,
-    y_pred_dir: np.ndarray,
-    y_true_mag: np.ndarray,
-    y_pred_mag: np.ndarray,
-    save_path: Optional[os.PathLike | str] = None,
-    return_bytes: bool = False,
-) -> Optional[str] | Optional[bytes]:
-    """
-    绘制预测 vs 实际：方向（0/1）与幅度（涨跌幅）。
-    save_path 给定则保存到文件并返回路径；return_bytes=True 时写入内存并返回 PNG bytes（不写文件）。
-    """
-    try:
-        import matplotlib
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-        from io import BytesIO
-    except ImportError:
-        return None
-    n = len(dates)
-    if n == 0:
-        return None
-    x_axis = range(n)
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 6), sharex=True)
-    ax1.plot(x_axis, y_true_dir, label="实际方向", color="blue", alpha=0.7)
-    ax1.plot(x_axis, y_pred_dir, label="预测方向", color="orange", alpha=0.7)
-    ax1.set_ylabel("方向 (0=跌, 1=涨)")
-    ax1.legend(loc="upper right")
-    ax1.set_title("未来5日价格方向：预测 vs 实际")
-    ax2.plot(x_axis, y_true_mag, label="实际涨跌幅", color="blue", alpha=0.7)
-    ax2.plot(x_axis, y_pred_mag, label="预测涨跌幅", color="orange", alpha=0.7)
-    ax2.set_ylabel("涨跌幅")
-    ax2.legend(loc="upper right")
-    ax2.set_title("未来5日涨跌幅：预测 vs 实际")
-    plt.xlabel("样本索引")
-    plt.tight_layout()
-    if return_bytes:
-        buf = BytesIO()
-        plt.savefig(buf, format="png", dpi=150)
-        plt.close()
-        return buf.getvalue()
-    if save_path:
-        save_path = Path(save_path)
-        save_path.parent.mkdir(parents=True, exist_ok=True)
-        plt.savefig(save_path, dpi=150)
-        plt.close()
-        return str(save_path)
-    plt.close()
-    return None
-
-
-def generate_fit_plot_for_symbol(
+def get_fit_plot_data(
     symbol: str,
     save_dir: Optional[os.PathLike | str] = None,
     fetch_hist_fn: Optional[Any] = None,
-    get_date_range_fn: Optional[Any] = None,
     years: Optional[int] = None,
-    return_bytes_only: bool = False,
-) -> bool | Optional[bytes]:
+) -> Optional[dict[str, Any]]:
     """
-    用指定模型与该股票历史数据生成「预测 vs 实际」曲线图。
-    - years=None：使用全局当前模型，get_date_range_fn() 取日期范围，生成后写入数据库，返回 True/False。
-    - years=1|2|3 且 return_bytes_only=True：使用该股票该年份的当前模型，用该版本训练日期范围取数，生成图并直接返回 bytes（不写入库）。
+    返回「预测 vs 实际」曲线图所需数据，供前端 ECharts 绘制。
+    返回: { dates, actual_dir, pred_dir, actual_mag, pred_mag, dates_price, actual_price, predicted_price } 或 None。
+    其中 dates_price/actual_price/predicted_price 为按 5 日窗口结束日对齐的「实际价格」与「预测价格」曲线。
+    若 lstm_constants.PREDICTION_OFFSET_DAYS > 0，会将预测曲线提前 N 天展示（在时间轴上左移）。
     """
-    if not symbol or not fetch_hist_fn:
-        return False if not return_bytes_only else None
-    if not return_bytes_only and not get_date_range_fn:
-        return False
+    if not symbol or not fetch_hist_fn or years not in (1, 2, 3):
+        return None
     _ensure_torch()
     import torch
     device = torch.device("cpu")
     save_dir = Path(save_dir or DEFAULT_MODEL_DIR)
-
-    if years is not None and years in (1, 2, 3) and return_bytes_only:
-        try:
-            model, _ = load_model(save_dir=save_dir, device=device, symbol=symbol, years=years)
-        except FileNotFoundError:
-            return None
-        try:
-            from data.lstm_repo import get_current_version_from_db, get_version_date_range
-        except ImportError:
-            return None
-        version_id = get_current_version_from_db(symbol=symbol, years=years)
-        if not version_id:
-            return None
-        date_range = get_version_date_range(version_id)
-        if not date_range:
-            return None
-        start_date, end_date = date_range
-        df = fetch_hist_fn(symbol, start_date, end_date)
-        if df is None or df.empty or len(df) < 65:
-            return None
-        X, _, _, y_dir, y_mag = build_features_from_df(df)
-        if len(X) == 0:
-            return None
-        model.eval()
-        with torch.no_grad():
-            x_t = torch.from_numpy(X).float().to(device)
-            logits, mag_pred = model(x_t)
-            pred_dir = logits.argmax(dim=1).cpu().numpy()
-            pred_mag = mag_pred.cpu().numpy().flatten()
-        plot_bytes = plot_predictions_vs_actual(
-            list(range(len(y_dir))), y_dir, pred_dir, y_mag, pred_mag, return_bytes=True
-        )
-        return plot_bytes if isinstance(plot_bytes, bytes) else None
-
     try:
-        model, _ = load_model(save_dir=save_dir, device=device)
+        model, metadata_plot = load_model(save_dir=save_dir, device=device, symbol=symbol, years=years)
     except FileNotFoundError:
-        return False
-    start_date, end_date, _ = get_date_range_fn()
+        return None
+    try:
+        from data.lstm_repo import get_current_version_from_db, get_version_date_range
+    except ImportError:
+        return None
+    version_id = get_current_version_from_db(symbol=symbol, years=years)
+    if not version_id:
+        return None
+    date_range = get_version_date_range(version_id)
+    if not date_range:
+        return None
+    start_date, end_date = date_range
     df = fetch_hist_fn(symbol, start_date, end_date)
     if df is None or df.empty or len(df) < 65:
-        return False
-    X, _, _, y_dir, y_mag = build_features_from_df(df)
+        return None
+    X, _, y_info, y_dir, y_mag = build_features_from_df(df)
     if len(X) == 0:
-        return False
+        return None
     model.eval()
     with torch.no_grad():
         x_t = torch.from_numpy(X).float().to(device)
         logits, mag_pred = model(x_t)
         pred_dir = logits.argmax(dim=1).cpu().numpy()
-        pred_mag = mag_pred.cpu().numpy().flatten()
-    plot_bytes = plot_predictions_vs_actual(
-        list(range(len(y_dir))), y_dir, pred_dir, y_mag, pred_mag, return_bytes=True
-    )
-    if not isinstance(plot_bytes, bytes):
-        return False
-    return True
+        mag_np = mag_pred.cpu().numpy()
+        y_mean = metadata_plot.get("y_mag_mean")
+        y_std = metadata_plot.get("y_mag_std")
+        if y_mean is not None and y_std is not None:
+            mag_np = _inverse_standardize_mag(mag_np, y_mean, y_std)
+        pred_mag = (mag_np.mean(axis=1) if mag_np.ndim > 1 else mag_np.flatten()).tolist()
+    dates = [str(d)[:10] for d in y_info.index.tolist()]
+    # y_mag 可能为 (N,5) 逐日或 (N,) 单值；图表用「5 日累计」一维
+    if y_mag.ndim == 2 and y_mag.shape[1] == FORECAST_DAYS:
+        actual_mag_1d = np.array([float((1 + m[0]) * (1 + m[1]) * (1 + m[2]) * (1 + m[3]) * (1 + m[4]) - 1) for m in y_mag])
+    else:
+        actual_mag_1d = np.asarray(y_mag).flatten()
+    # 预测价格曲线：每个样本对应 5 日窗口的结束日，蓝线=当日实际收盘价，红线=起点价×(1+预测涨跌幅)，同一 k 同一结束日，无故意错位
+    # 注意：上方「方向/涨跌幅」横轴为窗口起始日，此处为结束日，故与上两块图相比会有约 5 日的视觉错位
+    close_col = "收盘" if "收盘" in df.columns else "close"
+    date_col = "日期" if "日期" in df.columns else None
+    close_series = df[close_col].astype(float)
+    n_samples = len(X)
+    actual_price_list: list[float] = []
+    predicted_price_list: list[float] = []
+    dates_price: list[str] = []
+    for k in range(n_samples):
+        idx_start = SEQ_LEN + k - 1  # 5 日窗口前一日收盘（预测起点）
+        idx_end = SEQ_LEN + k + FORECAST_DAYS - 1  # 5 日窗口最后一日收盘
+        start_price = float(close_series.iloc[idx_start])
+        end_price = float(close_series.iloc[idx_end])
+        actual_price_list.append(end_price)
+        predicted_price_list.append(start_price * (1.0 + float(pred_mag[k])))
+        if date_col:
+            dates_price.append(str(df[date_col].iloc[idx_end])[:10])
+        else:
+            dates_price.append(str(df.index[idx_end])[:10] if hasattr(df.index[idx_end], "__str__") else str(idx_end))
+    result: dict[str, Any] = {
+        "dates": dates,
+        "actual_dir": y_dir.tolist(),
+        "pred_dir": pred_dir.tolist(),
+        "actual_mag": actual_mag_1d.tolist(),
+        "pred_mag": pred_mag,
+        "dates_price": dates_price,
+        "actual_price": actual_price_list,
+        "predicted_price": predicted_price_list,
+    }
+    # 预测提前：若 PREDICTION_OFFSET_DAYS=N，在日期 j 处显示 pred[j+N]，使预测曲线在时间轴上左移 N 天
+    offset = PREDICTION_OFFSET_DAYS if isinstance(PREDICTION_OFFSET_DAYS, int) else 0
+    if offset > 0 and n_samples > offset:
+        result["dates"] = dates[: n_samples - offset]
+        result["actual_dir"] = y_dir.tolist()[: n_samples - offset]
+        result["pred_dir"] = pred_dir.tolist()[offset:]
+        result["actual_mag"] = actual_mag_1d.tolist()[: n_samples - offset]
+        result["pred_mag"] = pred_mag[offset:]
+        result["dates_price"] = dates_price[: n_samples - offset]
+        result["actual_price"] = actual_price_list[: n_samples - offset]
+        result["predicted_price"] = predicted_price_list[offset:]
+    try:
+        from analysis.lstm_diagnostics import 诊断LSTM预测平淡问题
+        训练数据 = {"X": X}
+        诊断结果 = 诊断LSTM预测平淡问题(np.array(pred_mag) if isinstance(pred_mag, list) else pred_mag, actual_mag_1d, model, 训练数据)
+        result["diagnostics"] = 诊断结果
+    except Exception:
+        pass
+    return result
 
 
 def run_lstm_pipeline(
@@ -857,6 +1118,10 @@ def run_lstm_pipeline(
     do_post_training_validation: bool = True,
     fast_training: bool = False,
     years: int = 1,
+    use_enhanced_model: bool = True,
+    reg_loss_type: str = "full",
+    use_improved_training: bool = True,
+    stop_event: Optional[Any] = None,
 ) -> dict[str, Any]:
     """
     端到端：特征构建 -> 交叉验证/超参优化 -> 训练保存 ->（可选）样本外验证，仅更优则部署 -> 可解释性 -> 可视化。
@@ -895,8 +1160,10 @@ def run_lstm_pipeline(
     promote = not do_post_training_validation
 
     validation_score: Optional[dict[str, float] | float] = None
+    # 使用改进训练时跳过交叉验证，用固定超参直接训练，显著提速（CV 约 40 次子训练）
+    skip_cv = use_improved_training
     n_splits = CPU_FRIENDLY_CV_SPLITS if fast_training else 5
-    if do_cv_tune:
+    if do_cv_tune and not skip_cv:
         cv_result = cross_validate_and_tune(
             X, y_dir, y_mag, feature_names,
             n_splits=n_splits,
@@ -913,7 +1180,7 @@ def run_lstm_pipeline(
             "avg_mse": best_entry["avg_mse"],
         }
     else:
-        lr, hidden_size, epochs = 5e-4, 64, 50
+        lr, hidden_size, epochs = 5e-4, 128 if use_enhanced_model else 64, 50
 
     model, metadata, metrics = train_and_save(
         X, y_dir, y_mag, feature_names,
@@ -928,9 +1195,14 @@ def run_lstm_pipeline(
         promote_to_current=promote,
         symbol=sym_val,
         years=years_val,
+        use_enhanced_model=use_enhanced_model,
+        reg_loss_type=reg_loss_type,
+        use_improved_training=use_improved_training,
+        stop_event=stop_event,
     )
     result["metrics"] = metrics
     result["metadata"] = metadata
+    result["diagnostics"] = metadata.get("diagnostics") or {}
 
     # 训练后验证：样本外测试（最近约 3 个月），仅新模型显著优于旧模型才部署
     if do_post_training_validation and evaluate_model_on_holdout and should_deploy_new_model and set_current_version and remove_version and _prune_versions:
@@ -939,13 +1211,21 @@ def run_lstm_pipeline(
         X_holdout = X[-n_holdout:]
         y_dir_holdout = y_dir[-n_holdout:]
         y_mag_holdout = y_mag[-n_holdout:]
-        new_holdout_metrics = evaluate_model_on_holdout(model, X_holdout, y_dir_holdout, y_mag_holdout, device=device)
+        y_mag_mean = metadata.get("y_mag_mean")
+        y_mag_std = metadata.get("y_mag_std")
+        new_holdout_metrics = evaluate_model_on_holdout(
+            model, X_holdout, y_dir_holdout, y_mag_holdout, device=device,
+            y_mag_mean=y_mag_mean, y_mag_std=y_mag_std,
+        )
         old_holdout_metrics: dict[str, float] = {}
         old_model = None
         if old_version_id and old_version_id != new_version_id:
             try:
-                old_model, _ = load_model(save_dir=save_dir, device=device, version_id=old_version_id)
-                old_holdout_metrics = evaluate_model_on_holdout(old_model, X_holdout, y_dir_holdout, y_mag_holdout, device=device)
+                old_model, old_meta = load_model(save_dir=save_dir, device=device, version_id=old_version_id)
+                old_holdout_metrics = evaluate_model_on_holdout(
+                    old_model, X_holdout, y_dir_holdout, y_mag_holdout, device=device,
+                    y_mag_mean=old_meta.get("y_mag_mean"), y_mag_std=old_meta.get("y_mag_std"),
+                )
             except Exception:
                 pass
         deploy, reason = should_deploy_new_model(new_holdout_metrics, old_holdout_metrics) if old_holdout_metrics else (True, "无旧模型，直接部署")
@@ -969,22 +1249,6 @@ def run_lstm_pipeline(
             n_explain=min(200, len(X)),
         )
         result["interpretability"] = interpret
-
-    if do_plot:
-        dates = list(range(len(y_dir)))
-        pred_dir = np.array(metadata.get("last_dir_pred", []))
-        pred_mag = np.array(metadata.get("last_mag_pred", []))
-        if len(pred_dir) == len(y_dir) and len(pred_mag) == len(y_mag):
-            plot_bytes = plot_predictions_vs_actual(
-                dates, y_dir, pred_dir, y_mag, pred_mag, return_bytes=True
-            )
-            if isinstance(plot_bytes, bytes) and symbol and years_val in (1, 2, 3):
-                try:
-                    from data.lstm_repo import save_lstm_plot_cache
-                    save_lstm_plot_cache(symbol, years_val, plot_bytes)
-                except Exception:
-                    pass
-            result["plot_path"] = "db" if isinstance(plot_bytes, bytes) else ""
 
     return result
 

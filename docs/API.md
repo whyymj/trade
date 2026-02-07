@@ -47,13 +47,14 @@
 | GET | `/api/analyze` | 综合分析（时域/频域/ARIMA/复杂度/技术指标）。Query: symbol, start, end（YYYY-MM-DD）。返回 { summary, report_md, charts } |
 | GET | `/api/analyze/export` | 同分析参数，返回 Markdown 文件附件（含 YAML 元数据、结构化摘要 JSON、完整报告），便于存档与 AI 解析 |
 | GET | `/api/lstm/recommended-range` | 获取 LSTM 训练推荐日期范围。Query: years=1\|2（默认 1），use_config=1 时用 config 范围。返回 { start, end, hint } |
-| POST | `/api/lstm/train` | 训练 LSTM 模型（存数据库，只保留最新 1 个版本）。Body: symbol, start, end, do_cv_tune, do_shap。返回 metrics、version_id、plot_path |
-| POST | `/api/lstm/train-all` | 一键训练全部股票（以列表中已有数据的股票为准）。Body: start?, end?, years?, do_cv_tune?, do_shap?, do_plot?, fast_training?。返回 results、total、success_count、fail_count |
+| POST | `/api/lstm/train` | 训练 LSTM 模型。Body: symbol, start?, end?, all_years?, do_cv_tune?, do_shap?, do_plot?, fast_training?, **use_improved_training?**, **reg_loss_type?**。返回 metrics、metadata（含 version_id、diagnostics）、validation。训练流水 params 中记录 reg_loss_type、use_improved_training。 |
+| POST | `/api/lstm/train-all` | 一键训练全部股票。Body: start?, end?, years?, do_cv_tune?, do_shap?, do_plot?, fast_training?, **use_improved_training?**, **reg_loss_type?**。返回 results、total、success_count、fail_count |
 | GET | `/api/lstm/predict` | 使用当前版本模型预测；自动记录预测日志。Query: symbol |
 | POST | `/api/lstm/predict-all` | 对当前全部股票执行预测；Body: use_fallback?, trigger_train_async? |
 | GET | `/api/lstm/plot` | 从数据库返回某股票拟合曲线图（PNG）。Query: symbol（必填）, generate=1 按需生成 |
 | GET | `/api/lstm/training-runs` | 从 MySQL 查询训练流水（参数、指标、验证结果）。Query: symbol, limit |
 | GET | `/api/lstm/versions` | 列出模型版本与当前版本 ID |
+| GET | `/api/lstm/training-spec` | 返回 LSTM 训练与架构规格（JSON），便于 AI/脚本分析。含数据规格、特征、模型结构、训练参数、损失与验证规则 |
 | POST | `/api/lstm/rollback` | 回滚到指定版本。Body: version_id |
 | POST | `/api/lstm/check-triggers` | 检查/执行训练触发（周五周度、月末完整、性能衰减）。Body: symbol, run |
 | POST | `/api/lstm/update-accuracy` | 回填预测准确性（供性能衰减判断）。Body: symbol, as_of_date |
@@ -273,7 +274,7 @@ LSTM 模块使用过去 60 个交易日的收盘价、成交量与技术指标�
 - **完整训练**：用于月度/季度，时间序列交叉验证 + 训练后**样本外验证**（保留最近约 3 个月作测试集，新模型仅当显著优于旧模型才部署）。  
 - **增量训练**：用于周度，由触发逻辑调用（加载当前模型 + 近期数据微调），不做交叉验证。
 
-训练并保存到数据库 `lstm_model_version` 表（只保留最新 1 个版本）。支持 SHAP、预测 vs 实际曲线图（图存于表 `lstm_plot`，不写本地）。响应中含 `metadata.version_id`、可选 `validation`: { "deployed", "reason", "new_holdout_metrics", "old_holdout_metrics" }。训练失败会记录到 `training_failure_log`，供告警（失败 ≥3 次）使用。
+训练并保存到数据库 `lstm_model_version` 表（只保留最新 1 个版本）。支持 SHAP。拟合曲线由前端通过 `GET /api/lstm/plot-data` 拉取数据后 ECharts 实时绘制，不再生成或存储 PNG。响应中含 `metadata.version_id`、可选 `validation`: { "deployed", "reason", "new_holdout_metrics", "old_holdout_metrics" }。训练失败会记录到 `training_failure_log`，供告警（失败 ≥3 次）使用。
 
 **本机训练参数说明**：默认会做 5 折交叉验证并搜索 lr=[1e-3, 5e-4]、hidden_size=[32, 64]、epochs=[30, 50]，在 **仅 CPU** 上完整跑完可能需 20～60 分钟（视样本量）。若本机无 GPU 或希望缩短时间，可传 **`fast_training: true`**，将改为单组超参（lr=5e-4、hidden=32、epochs=25）、3 折 CV，单次约 2～8 分钟，仍适合本机训练。
 
@@ -286,10 +287,12 @@ LSTM 模块使用过去 60 个交易日的收盘价、成交量与技术指标�
 | `end` | string | 否 | 结束日期 YYYY-MM-DD；缺省用 config 范围 |
 | `do_cv_tune` | bool | 否 | 是否做交叉验证与超参搜索，默认 true |
 | `do_shap` | bool | 否 | 是否计算 SHAP，默认 true |
-| `do_plot` | bool | 否 | 是否生成预测 vs 实际图，默认 true |
+| `do_plot` | bool | 否 | 已废弃，保留兼容；拟合曲线由前端通过 plot-data 接口 + ECharts 绘制 |
 | `fast_training` | bool | 否 | **本机/CPU 友好**：为 true 时用更少超参与 3 折 CV，单次约 2～8 分钟，适合无 GPU 或快速试跑 |
+| `use_improved_training` | bool | 否 | **波动优化**：为 true 时使用改进训练策略（AdamW、余弦退火、早停、数据增强），默认 false，保持 API 兼容 |
+| `reg_loss_type` | string | 否 | 回归损失类型：`mse`、`huber`、`volatility`、`full`，默认 `volatility`；与 use_improved_training 配合使用 |
 
-**响应 200**：`{ "symbol", "n_samples", "metrics": { "accuracy", "recall", "f1", "mse" }, "cross_validation", "interpretability": { "feature_importance", "shap_values" 等 }, "plot_path" }`。  
+**响应 200**：`{ "symbol", "n_samples", "metrics": { "accuracy", "recall", "f1", "mse" }, "cross_validation", "interpretability": { "feature_importance", "shap_values" 等 } }`。  
 数据不足 65 个交易日时返回 400：`{ "error": "样本不足，需要至少 65 个交易日数据" }`。
 
 ### 6.2 GET /api/lstm/predict（每日预测流程）
@@ -319,6 +322,12 @@ LSTM 模块使用过去 60 个交易日的收盘价、成交量与技术指标�
 列出 LSTM 模型版本（最近 5 个）。每项含 `version_id`、`training_time`、`data_start`、`data_end`、`validation_score`、`metrics`。
 
 **响应 200**：`{ "current_version_id": "20250205_143022", "versions": [ ... ] }`。
+
+### 6.3.1 GET /api/lstm/training-spec
+
+返回 LSTM 训练与架构规格（JSON），便于 AI 或脚本分析。包含：数据规格（序列长度、预测天数、最少样本）、特征列表（基础 + 波动增强）及说明、模型架构（LSTMDualHead / LSTMDualHeadEnhanced 结构）、训练参数（改进策略配置、交叉验证网格、损失选项）、验证与部署规则。文档版见 `docs/LSTM_TRAINING_SPEC.md` 与 `docs/LSTM_TRAINING_SPEC.json`。
+
+**响应 200**：`{ "version": "1.0", "data": { ... }, "architecture": { ... }, "training": { ... }, "validation": { ... }, "paths": { ... } }`。
 
 ### 6.4 POST /api/lstm/rollback
 

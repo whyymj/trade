@@ -1028,9 +1028,64 @@ def run_analysis_from_dataframe(
     }
 
 
+def _format_analysis_data_table(summary: dict[str, Any]) -> list[str]:
+    """从 summary 生成「关键分析数据」一览表（Markdown 表格），与图表页展示一致。"""
+    si = summary.get("stock_info") or {}
+    td = summary.get("time_domain") or {}
+    cp = summary.get("complexity") or {}
+    ar = summary.get("arima") or {}
+    fd = summary.get("frequency_domain") or {}
+    dp0 = (fd.get("dominant_periods") or [{}])[0]
+    tech = summary.get("technical") or {}
+    sig = tech.get("signals") or {}
+    sig_combined = sig.get("combined") if isinstance(sig, dict) else str(sig) if sig else "—"
+
+    def _v(x, fmt=None):
+        if x is None or (isinstance(x, float) and x != x):
+            return "—"
+        if fmt == "pct":
+            return f"{float(x):.2f}%"
+        if fmt == "pct100":
+            return f"{float(x) * 100:.2f}%"
+        if isinstance(x, float):
+            return f"{x:.4g}" if fmt is None else f"{x:.2f}"
+        return str(x)
+
+    rows = [
+        ("股票", si.get("name") or "—"),
+        ("数据区间", f"{si.get('start_date') or '—'} ~ {si.get('end_date') or '—'}"),
+        ("区间涨跌幅", _v(si.get("total_return"), "pct")),
+        ("最大回撤", _v(td.get("max_drawdown"), "pct100")),
+        ("Hurst 指数", _v(cp.get("hurst_exponent"))),
+        ("样本熵", _v(cp.get("sample_entropy"))),
+        ("ARIMA R²", _v(ar.get("r_squared"))),
+        ("主周期(天)", _v(dp0.get("period_days")) if isinstance(dp0, dict) else "—"),
+        ("RSI(14)", _v(tech.get("rsi"))),
+        ("VaR(95%)", _v(tech.get("var_95"), "pct100")),
+        ("MFI(14)", _v(tech.get("mfi"))),
+        ("Aroon上/下", f"{_v(tech.get('aroon_up'))} / {_v(tech.get('aroon_down'))}" if (tech.get("aroon_up") is not None or tech.get("aroon_down") is not None) else "—"),
+        ("信号", sig_combined),
+    ]
+    out = [
+        "",
+        "## 关键分析数据（一览表）",
+        "",
+        "与图表页「分析结果」一致的核心指标。",
+        "",
+        "| 指标 | 数值 |",
+        "|------|------|",
+    ]
+    for label, val in rows:
+        val_esc = str(val).replace("|", "｜")
+        out.append(f"| {label} | {val_esc} |")
+    out.extend(["", ""])
+    return out
+
+
 def build_export_document(
     result: dict[str, Any],
     export_time: str | None = None,
+    lstm_section: str | None = None,
 ) -> str:
     """
     将分析结果整理为可下载的 Markdown 文档，便于存档与 AI 解析。
@@ -1038,11 +1093,15 @@ def build_export_document(
     文档结构：
     - YAML front matter：标题、标的、日期范围、导出时间
     - 结构化摘要：JSON 格式的 summary，供程序/AI 解析
+    - 关键分析数据：一览表（与图表页一致）
+    - 结论摘要：风险等级、可预测性、一段话、结论条目、策略建议
+    - LSTM 预测摘要（可选）
     - 完整报告正文：report_md 全文
 
     Args:
         result: run_analysis_from_dataframe 的返回值（含 summary、report_md）
         export_time: 导出时间字符串，默认当前时间
+        lstm_section: 可选，LSTM 预测摘要的 Markdown 片段，会插入在结论与正文之间
 
     Returns:
         完整 Markdown 字符串，UTF-8
@@ -1093,6 +1152,10 @@ def build_export_document(
         "```",
         "",
         "---",
+    ]
+    lines.extend(_format_analysis_data_table(summary_clean))
+    lines.extend([
+        "---",
         "",
         "## 结论摘要（供AI解析）",
         "",
@@ -1102,7 +1165,7 @@ def build_export_document(
         "|------|------|",
         f"| 风险等级 | {ai_conclusions.get('risk_level', 'N/A')} |",
         f"| 可预测性 | {ai_conclusions.get('predictability', 'N/A')} |",
-    ]
+    ])
     one_para = (ai_conclusions.get("one_paragraph") or "N/A").replace("\n", " ").replace("|", "｜")[:500]
     lines.append(f"| 一段话摘要 | {one_para} |")
     lines.extend([
@@ -1130,6 +1193,10 @@ def build_export_document(
         "",
         "---",
         "",
+    ])
+    if lstm_section and lstm_section.strip():
+        lines.extend([lstm_section.strip(), "", "---", "", ""])
+    lines.extend([
         "# 完整报告正文",
         "",
         report_md,

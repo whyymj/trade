@@ -85,7 +85,7 @@ def predict_with_fallback(
     df: pd.DataFrame,
     load_model_fn: Callable[..., Any],
     build_features_fn: Callable[..., Any],
-    predict_lstm_fn: Callable[[Any, Any], tuple[int, float, float]],
+    predict_lstm_fn: Callable[..., Any],  # (model, X) 或 (model, X, metadata)，返回 (direction, magnitude, prob_up, magnitude_5?)
     *,
     save_dir: Optional[Any] = None,
 ) -> dict[str, Any]:
@@ -104,8 +104,13 @@ def predict_with_fallback(
         model, metadata = load_model_fn(save_dir=save_dir)
         X, _, _, _, _ = build_features_fn(df)
         if len(X) > 0:
-            direction, magnitude_val, prob_up = predict_lstm_fn(model, X)
-            return {
+            try:
+                raw = predict_lstm_fn(model, X, metadata)
+            except TypeError:
+                raw = predict_lstm_fn(model, X)
+            direction, magnitude_val, prob_up = raw[0], raw[1], raw[2]
+            magnitude_5 = raw[3] if len(raw) > 3 else None
+            out = {
                 "symbol": symbol,
                 "direction": direction,
                 "direction_label": "涨" if direction == 1 else "跌",
@@ -114,6 +119,9 @@ def predict_with_fallback(
                 "prob_down": round(1 - prob_up, 4),
                 "source": "lstm",
             }
+            if magnitude_5 is not None:
+                out["magnitude_5"] = magnitude_5
+            return out
     except Exception as e:
         logger.warning("LSTM 预测失败，尝试回退: %s", e)
 

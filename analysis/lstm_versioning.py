@@ -243,19 +243,24 @@ def record_prediction(
     model_version_id: Optional[str] = None,
     save_dir: Optional[Path | str] = None,
     source: str = "lstm",
+    years: int = 1,
+    magnitude_5: Optional[list[float]] = None,
 ) -> None:
-    """记录一次预测，用于后续回填准确性。predict_date 格式 YYYY-MM-DD 或 YYYYMMDD。"""
+    """记录一次预测，用于后续回填准确性。predict_date 格式 YYYY-MM-DD 或 YYYYMMDD。years 为 1/2/3 年模型。magnitude_5 为未来 5 日逐日涨跌幅（可选）。"""
     base = _base_dir(save_dir)
     records = _load_json_list(base, PREDICTION_LOG_FILE)
     rec = {
         "symbol": symbol,
         "predict_date": _normalize_date(predict_date),
+        "years": 1 if years not in (1, 2, 3) else years,
         "direction": direction,
         "magnitude": magnitude,
         "prob_up": prob_up,
         "model_version_id": model_version_id or get_current_version_id(base),
         "recorded_at": datetime.now().isoformat(),
     }
+    if magnitude_5 is not None:
+        rec["magnitude_5"] = magnitude_5
     records.append(rec)
     _save_json_list(base, PREDICTION_LOG_FILE, records)
     try:
@@ -268,6 +273,8 @@ def record_prediction(
             prob_up=prob_up,
             model_version_id=rec.get("model_version_id"),
             source=(source or "lstm").strip()[:16],
+            years=rec["years"],
+            magnitude_5=magnitude_5,
         )
     except Exception:
         pass

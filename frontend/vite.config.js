@@ -16,6 +16,9 @@ export default defineConfig({
       '/api': {
         target: 'http://127.0.0.1:5050',
         changeOrigin: true,
+        // LSTM 训练等接口可能耗时数分钟，避免代理提前断开
+        timeout: 30 * 60 * 1000,
+        proxyTimeout: 30 * 60 * 1000,
       },
     },
   },

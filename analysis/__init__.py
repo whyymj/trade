@@ -78,6 +78,10 @@ try:
         run_lstm_pipeline,
         train_and_save,
     )
+    from analysis.lstm_diagnostics import (
+        计算特征相关性,
+        诊断LSTM预测平淡问题,
+    )
     _LSTM_AVAILABLE = True
 except Exception:
     _LSTM_AVAILABLE = False
@@ -86,6 +90,8 @@ except Exception:
     load_model = None
     run_lstm_pipeline = None
     train_and_save = None
+    计算特征相关性 = None
+    诊断LSTM预测平淡问题 = None
 
 __all__ = [
     # 时域分析
@@ -133,4 +139,7 @@ __all__ = [
     "load_model",
     "run_lstm_pipeline",
     "train_and_save",
+    # LSTM 预测平淡诊断
+    "计算特征相关性",
+    "诊断LSTM预测平淡问题",
 ]

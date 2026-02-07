@@ -35,8 +35,12 @@ def evaluate_model_on_holdout(
     y_dir: np.ndarray,
     y_mag: np.ndarray,
     device: Optional[Any] = None,
+    *,
+    y_mag_mean: Optional[float] = None,
+    y_mag_std: Optional[float] = None,
 ) -> dict[str, float]:
-    """在样本外数据上评估模型，返回 accuracy, f1, mse, direction_accuracy。"""
+    """在样本外数据上评估模型，返回 accuracy, f1, mse, direction_accuracy。
+    若提供 y_mag_mean / y_mag_std（训练时标准化存于 metadata），则对预测做反标准化再与 y_mag 比较。"""
     if not _AVAILABLE or model is None:
         return {}
     if device is None:
@@ -47,6 +51,8 @@ def evaluate_model_on_holdout(
         logits, mag_pred = model(X_t)
     dir_pred = logits.argmax(dim=1).cpu().numpy()
     mag_pred_np = mag_pred.cpu().numpy()
+    if y_mag_mean is not None and y_mag_std is not None:
+        mag_pred_np = (mag_pred_np * y_mag_std + y_mag_mean).astype(np.float64)
     acc = float(np.mean((dir_pred == y_dir).astype(float)))
     f1 = float(f1_score(y_dir, dir_pred, average="binary", zero_division=0))
     mse = float(mean_squared_error(y_mag, mag_pred_np))

@@ -180,24 +180,55 @@ def create_lstm_current_version_per_symbol_table() -> None:
 
 
 def create_lstm_prediction_log_table() -> None:
-    """预测记录：每次预测写入一条，用于后续准确性回填。"""
+    """预测记录：按 (symbol, predict_date, years) 写入，支持 1/2/3 年模型分别记录。"""
     sql = """
     CREATE TABLE IF NOT EXISTS lstm_prediction_log (
         id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
         symbol VARCHAR(32) NOT NULL,
         predict_date DATE NOT NULL,
+        years TINYINT UNSIGNED NOT NULL DEFAULT 1 COMMENT '1/2/3 年模型',
         direction TINYINT NOT NULL COMMENT '0跌 1涨',
         magnitude DECIMAL(12,6) NOT NULL,
         prob_up DECIMAL(8,4) NOT NULL,
         model_version_id VARCHAR(32) DEFAULT NULL,
         source VARCHAR(16) NOT NULL DEFAULT 'lstm' COMMENT 'lstm|arima|technical',
+        magnitude_5 JSON DEFAULT NULL COMMENT '5日逐日涨跌幅',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY uk_symbol_predict (symbol, predict_date),
+        UNIQUE KEY uk_symbol_predict_years (symbol, predict_date, years),
         KEY idx_symbol (symbol),
+        KEY idx_symbol_years (symbol, years),
         KEY idx_predict_date (predict_date)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='LSTM预测记录'
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='LSTM预测记录(按股票+日期+年份)'
     """
     execute(sql)
+
+
+def migrate_lstm_prediction_log_years() -> None:
+    """为已存在的 lstm_prediction_log 表增加 years 列并调整唯一键。"""
+    try:
+        execute("ALTER TABLE lstm_prediction_log ADD COLUMN years TINYINT UNSIGNED NOT NULL DEFAULT 1 COMMENT '1/2/3 年模型'")
+    except Exception:
+        pass
+    try:
+        execute("ALTER TABLE lstm_prediction_log DROP INDEX uk_symbol_predict")
+    except Exception:
+        pass
+    try:
+        execute("ALTER TABLE lstm_prediction_log ADD UNIQUE KEY uk_symbol_predict_years (symbol, predict_date, years)")
+    except Exception:
+        pass
+    try:
+        execute("ALTER TABLE lstm_prediction_log ADD KEY idx_symbol_years (symbol, years)")
+    except Exception:
+        pass
+
+
+def migrate_lstm_prediction_log_magnitude_5() -> None:
+    """为 lstm_prediction_log 增加 magnitude_5 列（JSON 数组，5 日逐日涨跌幅）。"""
+    try:
+        execute("ALTER TABLE lstm_prediction_log ADD COLUMN magnitude_5 JSON DEFAULT NULL COMMENT '5日逐日涨跌幅'")
+    except Exception:
+        pass
 
 
 def create_lstm_accuracy_record_table() -> None:
@@ -258,32 +289,6 @@ def create_lstm_model_version_table() -> None:
     execute(sql)
 
 
-def create_lstm_plot_table() -> None:
-    """LSTM 拟合曲线图（按股票），存 PNG 二进制，替代本地 plots 目录。"""
-    sql = """
-    CREATE TABLE IF NOT EXISTS lstm_plot (
-        symbol VARCHAR(64) NOT NULL PRIMARY KEY,
-        plot_blob LONGBLOB NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='LSTM拟合曲线图PNG(按股票)'
-    """
-    execute(sql)
-
-
-def create_lstm_plot_cache_table() -> None:
-    """按 (股票, 年份) 缓存的拟合曲线图，预测后生成并写入，展示时优先读取。"""
-    sql = """
-    CREATE TABLE IF NOT EXISTS lstm_plot_cache (
-        symbol VARCHAR(64) NOT NULL,
-        years TINYINT UNSIGNED NOT NULL COMMENT '1/2/3 年',
-        plot_blob LONGBLOB NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        PRIMARY KEY (symbol, years)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='LSTM拟合曲线图缓存(按股票+年份)'
-    """
-    execute(sql)
-
-
 def migrate_lstm_model_version_symbol_years() -> None:
     """为已存在的 lstm_model_version 表增加 symbol、years 列（按股票+年份存储迁移）。"""
     try:
@@ -309,9 +314,9 @@ def create_lstm_tables() -> None:
     create_lstm_accuracy_record_table()
     create_lstm_training_failure_table()
     create_lstm_model_version_table()
-    create_lstm_plot_table()
-    create_lstm_plot_cache_table()
     migrate_lstm_model_version_symbol_years()
+    migrate_lstm_prediction_log_years()
+    migrate_lstm_prediction_log_magnitude_5()
 
 
 def create_all_tables() -> None:
