@@ -11,6 +11,15 @@
       >
         LSTM 训练/预测
       </el-link>
+      <el-link
+        v-if="symbol"
+        type="primary"
+        underline="never"
+        class="nav-link"
+        @click="$router.push({ path: '/ensemble', query: { symbol } })"
+      >
+        集成多因子预测
+      </el-link>
     </div>
 
     <template v-if="symbol">

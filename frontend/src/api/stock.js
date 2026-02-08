@@ -276,3 +276,26 @@ export function apiLstmAlerts(body) {
     body: JSON.stringify(body || {}),
   })
 }
+
+// ---------- 集成学习多因子预测 ----------
+
+/** 多因子绩效报告。query: { symbol, start, end, forward_days?, rolling_window? }。返回 report_md、top_ic_factors、n_factors 等。 */
+export function apiEnsembleFactorReport(query) {
+  const params = new URLSearchParams()
+  if (query.symbol) params.set('symbol', query.symbol)
+  if (query.start) params.set('start', query.start)
+  if (query.end) params.set('end', query.end)
+  if (query.forward_days != null) params.set('forward_days', String(query.forward_days))
+  if (query.rolling_window != null) params.set('rolling_window', String(query.rolling_window))
+  return request('/api/ensemble/factor-report?' + params.toString())
+}
+
+/** 集成训练。body: { symbol, start, end, forward_days?, train_ratio?, use_rfe?, rfe_min_features?, rfe_cv?, early_stopping_rounds?, optimize_weights? }。 */
+const ENSEMBLE_TRAIN_TIMEOUT_MS = 15 * 60 * 1000 // 15 分钟
+export function apiEnsembleTrain(body) {
+  return request('/api/ensemble/train', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    timeoutMs: ENSEMBLE_TRAIN_TIMEOUT_MS,
+  })
+}

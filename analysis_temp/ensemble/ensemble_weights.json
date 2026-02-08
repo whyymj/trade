@@ -1,0 +1,26 @@
+{
+  "weights": [
+    1.0,
+    0.0,
+    0.0
+  ],
+  "feature_names": [
+    "rsi_10",
+    "atr_21",
+    "bb_upper_8",
+    "bb_upper_10",
+    "bb_lower_10",
+    "bb_mid_10",
+    "bb_lower_12",
+    "bb_mid_12",
+    "bb_lower_25",
+    "bb_width_25",
+    "obv_ratio_30",
+    "close_ma_10",
+    "close_ma_12",
+    "turnover_ma_15",
+    "turnover_ma_20"
+  ],
+  "val_auc": 0.46853932584269664,
+  "val_accuracy": 0.3819444444444444
+}

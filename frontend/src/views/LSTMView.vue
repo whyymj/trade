@@ -2,6 +2,7 @@
   <div class="container">
     <div class="nav-row">
       <el-link type="primary" underline="never" class="nav-link" @click="$router.push('/')">股票列表</el-link>
+      <el-link type="primary" underline="never" class="nav-link" @click="$router.push('/ensemble')">集成多因子预测</el-link>
     </div>
     <h1>LSTM 训练与预测</h1>
     <p class="subtitle">按股票与 1/2/3 年分别训练与预测，查看流水、版本与监控</p>

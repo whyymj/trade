@@ -2,6 +2,7 @@
   <div class="container">
     <div class="nav-row">
       <el-link type="primary" underline="never" class="nav-link" @click="$router.push('/lstm')">LSTM 训练/预测</el-link>
+      <el-link type="primary" underline="never" class="nav-link" @click="$router.push('/ensemble')">集成多因子预测</el-link>
     </div>
     <h1>股票列表</h1>
     <p class="subtitle">管理已配置股票，点击「查看」在新标签页打开曲线</p>

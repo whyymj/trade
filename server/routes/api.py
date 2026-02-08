@@ -180,6 +180,20 @@ except ImportError:
     get_trained_years_per_symbol = None
     get_all_last_predictions = None
 
+try:
+    from analysis.factor_library import build_factor_library, get_all_factor_names
+    from analysis.ensemble_models import run_ensemble_pipeline, save_ensemble_artifacts
+    from analysis.ensemble_report import generate_factor_performance_report, report_to_markdown
+    _ENSEMBLE_AVAILABLE = True
+except ImportError:
+    _ENSEMBLE_AVAILABLE = False
+    build_factor_library = None  # type: ignore[assignment]
+    get_all_factor_names = None  # type: ignore[assignment]
+    run_ensemble_pipeline = None  # type: ignore[assignment]
+    save_ensemble_artifacts = None  # type: ignore[assignment]
+    generate_factor_performance_report = None  # type: ignore[assignment]
+    report_to_markdown = None  # type: ignore[assignment]
+
 
 def _list_stocks():
     """从数据库返回股票列表，每项含 filename（symbol）、displayName、remark、lastUpdateDate。"""
@@ -509,6 +523,143 @@ def __quote_filename(name: str) -> str:
     """对文件名做 RFC 5987 编码，用于 Content-Disposition。"""
     from urllib.parse import quote
     return quote(name, safe="")
+
+
+# ---------- 集成学习多因子预测 ----------
+
+
+@api_bp.route("/ensemble/factor-report", methods=["GET"])
+def ensemble_factor_report():
+    """
+    多因子绩效分析报告。
+    Query: symbol=600519, start=YYYY-MM-DD, end=YYYY-MM-DD, forward_days=5, rolling_window=20
+    返回: summary, report_md, top_ic_factors, top_rank_ic_factors, n_factors 等。
+    """
+    if not _ENSEMBLE_AVAILABLE or generate_factor_performance_report is None or report_to_markdown is None:
+        return jsonify({
+            "error": "集成学习模块不可用。请安装依赖：pip install xgboost lightgbm（或 pip install -r requirements.txt）",
+        }), 503
+    symbol = request.args.get("symbol", "").strip()
+    if not symbol or ".." in symbol or "/" in symbol or "\\" in symbol:
+        return jsonify({"error": "缺少或非法 symbol 参数"}), 400
+    start_arg = _normalize_ymd(request.args.get("start", ""))
+    end_arg = _normalize_ymd(request.args.get("end", ""))
+    if not start_arg or not end_arg:
+        return jsonify({"error": "请提供 start 与 end 参数（YYYY-MM-DD）"}), 400
+    forward_days = request.args.get("forward_days", "5", type=str)
+    try:
+        forward_days = int(forward_days) if forward_days else 5
+    except ValueError:
+        forward_days = 5
+    rolling_window = request.args.get("rolling_window", "20", type=str)
+    try:
+        rolling_window = int(rolling_window) if rolling_window else 20
+    except ValueError:
+        rolling_window = 20
+    df = fetch_hist(symbol, start_arg, end_arg)
+    if df is None or df.empty:
+        return jsonify({"error": "暂无数据或拉取失败"}), 404
+    close_col = "收盘" if "收盘" in df.columns else "close"
+    if close_col not in df.columns:
+        return jsonify({"error": "数据缺少收盘价列"}), 400
+    try:
+        factor_df = build_factor_library(df)
+        forward_return = df[close_col].astype(float).pct_change(forward_days).shift(-forward_days)
+        report = generate_factor_performance_report(
+            factor_df, forward_return.dropna(),
+            rolling_window=rolling_window, top_pct=0.2, n_groups=5,
+        )
+        report_md = report_to_markdown(report)
+    except Exception as e:
+        return jsonify({"error": f"因子报告生成失败: {e}"}), 500
+    return jsonify({
+        "symbol": symbol,
+        "start": start_arg,
+        "end": end_arg,
+        "forward_days": forward_days,
+        "n_factors": report["summary"]["n_factors"],
+        "n_observations": report["summary"]["n_observations"],
+        "report_md": report_md,
+        "top_ic_factors": report.get("top_ic_factors", [])[:15],
+        "top_rank_ic_factors": report.get("top_rank_ic_factors", [])[:15],
+        "long_short_return": {k: v for k, v in list(report.get("long_short_return", {}).items())[:15]},
+    })
+
+
+@api_bp.route("/ensemble/train", methods=["POST"])
+def ensemble_train():
+    """
+    运行集成学习多因子训练流水线（XGBoost + LightGBM + RF，RFE 特征选择，权重优化）。
+    Body (JSON): symbol, start, end, forward_days=5, train_ratio=0.7, use_rfe=true, rfe_min_features=15,
+                 rfe_cv=3, early_stopping_rounds=30, optimize_weights=true
+    返回: val_auc, val_accuracy, ensemble_weights, feature_names, rf_feature_importance, n_samples 等。
+    """
+    if not _ENSEMBLE_AVAILABLE or run_ensemble_pipeline is None:
+        return jsonify({
+            "error": "集成学习模块不可用。请安装依赖：pip install xgboost lightgbm（或 pip install -r requirements.txt）",
+        }), 503
+    data = request.get_json(silent=True) or {}
+    symbol = (data.get("symbol") or "").strip()
+    if not symbol or ".." in symbol or "/" in symbol or "\\" in symbol:
+        return jsonify({"error": "缺少或非法 symbol 参数"}), 400
+    start_arg = _normalize_ymd(str(data.get("start", "")))
+    end_arg = _normalize_ymd(str(data.get("end", "")))
+    if not start_arg or not end_arg:
+        return jsonify({"error": "请提供 start 与 end（YYYY-MM-DD）"}), 400
+    forward_days = int(data.get("forward_days", 5)) or 5
+    train_ratio = float(data.get("train_ratio", 0.7)) or 0.7
+    use_rfe = bool(data.get("use_rfe", True))
+    rfe_min_features = int(data.get("rfe_min_features", 15)) or 15
+    rfe_cv = int(data.get("rfe_cv", 3)) or 3
+    early_stopping_rounds = int(data.get("early_stopping_rounds", 30)) or 30
+    optimize_weights = bool(data.get("optimize_weights", True))
+    df = fetch_hist(symbol, start_arg, end_arg)
+    if df is None or df.empty:
+        return jsonify({"error": "暂无数据或拉取失败"}), 404
+    close_col = "收盘" if "收盘" in df.columns else "close"
+    if close_col not in df.columns:
+        return jsonify({"error": "数据缺少收盘价列"}), 400
+    try:
+        factor_df = build_factor_library(df)
+        forward_return = df[close_col].astype(float).pct_change(forward_days).shift(-forward_days)
+        result = run_ensemble_pipeline(
+            factor_df, forward_return,
+            task="classification",
+            train_ratio=train_ratio,
+            use_rfe=use_rfe,
+            rfe_min_features=rfe_min_features,
+            rfe_cv=rfe_cv,
+            early_stopping_rounds=early_stopping_rounds,
+            optimize_weights=optimize_weights,
+        )
+    except Exception as e:
+        return jsonify({"error": f"集成训练失败: {e}"}), 500
+    if result.get("error"):
+        return jsonify(result), 400
+    out_dir = None
+    try:
+        from pathlib import Path
+        _ens_dir = Path(__file__).resolve().parent.parent.parent / "analysis_temp" / "ensemble"
+        save_ensemble_artifacts(result, _ens_dir)
+        out_dir = str(_ens_dir)
+    except Exception:
+        pass
+    return jsonify({
+        "symbol": symbol,
+        "start": start_arg,
+        "end": end_arg,
+        "forward_days": forward_days,
+        "n_samples": result.get("n_samples"),
+        "n_features_used": result.get("n_features_used"),
+        "val_auc": result.get("val_auc"),
+        "val_accuracy": result.get("val_accuracy"),
+        "val_rmse": result.get("val_rmse"),
+        "ensemble_weights": result.get("ensemble_weights"),
+        "optimized_metric": result.get("optimized_metric"),
+        "feature_names": result.get("feature_names", [])[:30],
+        "rf_feature_importance": result.get("rf_feature_importance", [])[:20],
+        "artifacts_saved_to": out_dir,
+    })
 
 
 # ---------- LSTM 深度学习预测 ----------

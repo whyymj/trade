@@ -69,6 +69,43 @@ from analysis.technical import (
     calc_rolling_volatility,
     calc_var_historical,
 )
+from analysis.factor_library import (
+    build_factor_library,
+    get_all_factor_names,
+    get_factor_names_by_category,
+)
+from analysis.ensemble_report import (
+    generate_factor_performance_report,
+    report_to_markdown,
+    calc_ic,
+    calc_rank_ic,
+    calc_ic_series,
+)
+
+try:
+    from analysis.ensemble_models import (
+        run_ensemble_pipeline,
+        save_ensemble_artifacts,
+        build_xy_from_factors,
+        train_xgb,
+        train_lgb,
+        train_rf,
+        run_rfecv,
+        optimize_ensemble_weights,
+        ensemble_weighted_predict,
+    )
+    _ENSEMBLE_AVAILABLE = True
+except Exception:
+    _ENSEMBLE_AVAILABLE = False
+    run_ensemble_pipeline = None  # type: ignore[assignment]
+    save_ensemble_artifacts = None  # type: ignore[assignment]
+    build_xy_from_factors = None  # type: ignore[assignment]
+    train_xgb = None  # type: ignore[assignment]
+    train_lgb = None  # type: ignore[assignment]
+    train_rf = None  # type: ignore[assignment]
+    run_rfecv = None  # type: ignore[assignment]
+    optimize_ensemble_weights = None  # type: ignore[assignment]
+    ensemble_weighted_predict = None  # type: ignore[assignment]
 
 try:
     from analysis.lstm_model import (
@@ -142,4 +179,22 @@ __all__ = [
     # LSTM 预测平淡诊断
     "计算特征相关性",
     "诊断LSTM预测平淡问题",
+    # 多因子与集成学习
+    "build_factor_library",
+    "get_all_factor_names",
+    "get_factor_names_by_category",
+    "generate_factor_performance_report",
+    "report_to_markdown",
+    "calc_ic",
+    "calc_rank_ic",
+    "calc_ic_series",
+    "run_ensemble_pipeline",
+    "save_ensemble_artifacts",
+    "build_xy_from_factors",
+    "train_xgb",
+    "train_lgb",
+    "train_rf",
+    "run_rfecv",
+    "optimize_ensemble_weights",
+    "ensemble_weighted_predict",
 ]

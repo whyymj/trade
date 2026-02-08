@@ -46,6 +46,8 @@
 | POST | `/api/remove_stock` | 从 config 移除股票并删除库中该股票数据（body: { "code": "600519" }） |
 | GET | `/api/analyze` | 综合分析（时域/频域/ARIMA/复杂度/技术指标）。Query: symbol, start, end（YYYY-MM-DD）。返回 { summary, report_md, charts } |
 | GET | `/api/analyze/export` | 同分析参数，返回 Markdown 文件附件（含 YAML 元数据、结构化摘要 JSON、完整报告），便于存档与 AI 解析 |
+| GET | `/api/ensemble/factor-report` | 多因子绩效分析报告。Query: symbol, start, end（YYYY-MM-DD 或 YYYYMMDD）, forward_days=5, rolling_window=20。返回 report_md、top_ic_factors、top_rank_ic_factors、long_short_return 等 |
+| POST | `/api/ensemble/train` | 集成学习多因子训练（XGBoost+LightGBM+RF、RFE、权重优化）。Body: symbol, start, end, forward_days=5, train_ratio=0.7, use_rfe=true, rfe_min_features=15, rfe_cv=3, early_stopping_rounds=30, optimize_weights=true。返回 val_auc、val_accuracy、ensemble_weights、feature_names、rf_feature_importance、artifacts_saved_to |
 | GET | `/api/lstm/recommended-range` | 获取 LSTM 训练推荐日期范围。Query: years=1\|2（默认 1），use_config=1 时用 config 范围。返回 { start, end, hint } |
 | POST | `/api/lstm/train` | 训练 LSTM 模型。Body: symbol, start?, end?, all_years?, do_cv_tune?, do_shap?, do_plot?, fast_training?, **use_improved_training?**, **reg_loss_type?**。返回 metrics、metadata（含 version_id、diagnostics）、validation。训练流水 params 中记录 reg_loss_type、use_improved_training。 |
 | POST | `/api/lstm/train-all` | 一键训练全部股票。Body: start?, end?, years?, do_cv_tune?, do_shap?, do_plot?, fast_training?, **use_improved_training?**, **reg_loss_type?**。返回 results、total、success_count、fail_count |
