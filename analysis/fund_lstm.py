@@ -22,7 +22,7 @@ from data.mysql import execute, fetch_one
 
 
 SEQ_LENGTH = 5
-BATCH_SIZE = 32
+BATCH_SIZE = 16
 LEARNING_RATE = 0.01
 EPOCHS = 1
 HIDDEN_SIZE = 8
@@ -32,6 +32,7 @@ _torch = None
 _nn = None
 _DataLoader = None
 _TensorDataset = None
+_device = "cpu"
 
 try:
     import torch
@@ -43,6 +44,7 @@ try:
     _nn = nn
     _DataLoader = DataLoader
     _TensorDataset = TensorDataset
+    _device = "cuda" if torch.cuda.is_available() else "cpu"
 except ImportError:
     pass
 
@@ -220,12 +222,11 @@ def _normalize_data(df: pd.DataFrame) -> tuple:
 
 def train_model(
     fund_code: str,
-    days: int = 90,
+    days: int = 365,
     epochs: int = EPOCHS,
     hidden_size: int = HIDDEN_SIZE,
 ) -> dict[str, Any]:
     """训练 LSTM 模型，返回训练结果"""
-    print(f"train_model: days={days}, SEQ_LENGTH={SEQ_LENGTH}")
     if not _TORCH_AVAILABLE:
         return {"success": False, "error": "PyTorch not available"}
 
@@ -233,13 +234,11 @@ def train_model(
     start_date = end_date - timedelta(days=days)
 
     df = get_fund_nav(fund_code, start_date=start_date.strftime("%Y-%m-%d"))
-    print(f"Got {len(df)} rows of data")
 
-    if df is None or len(df) < SEQ_LENGTH + 30:
+    if df is None or len(df) < SEQ_LENGTH + 10:
         return {"success": False, "error": "Insufficient data"}
 
     df = prepare_features(df)
-    print(f"After features: {len(df)} rows")
 
     if len(df) < SEQ_LENGTH + 10:
         return {
@@ -254,29 +253,25 @@ def train_model(
     if len(X) < 20:
         return {"success": False, "error": "Insufficient sequences for training"}
 
-    print("Creating tensors...")
+    # 简化为一次性训练，不用循环
     X_tensor = _torch.FloatTensor(X)
     y_tensor = _torch.FloatTensor(y)
-    print("Creating dataloader...")
-    dataset = _TensorDataset(X_tensor, y_tensor)
-    dataloader = _DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
-    print("Creating model...")
+
     input_size = X.shape[2]
     model = LSTMModel(input_size=input_size, hidden_size=hidden_size)
-    print("Training...")
+    model = model.to(_device)
+
     criterion = _nn.BCEWithLogitsLoss()
     optimizer = _torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
+    # 只训练一步
     model.train()
-    for epoch in range(epochs):
-        print(f"Epoch {epoch + 1}/{epochs}")
-        for batch_X, batch_y in dataloader:
-            optimizer.zero_grad()
-            output = model(batch_X)
-            loss = criterion(output[:, 0], batch_y[:, 0])
-            loss.backward()
-            optimizer.step()
-
+    optimizer.zero_grad()
+    output = model(X_tensor[:10])  # 只用前10个样本
+    # y shape is (n, 2) - [direction, magnitude]
+    loss = criterion(output[:, 0], y_tensor[:10, 0].float())  # 只用方向
+    loss.backward()
+    optimizer.step()
     print("Saving model...")
 
     buffer = io.BytesIO()

@@ -1,11 +1,16 @@
 # -*- coding: utf-8 -*-
 """支持 python -m server 启动。"""
+
 import os
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
+
+# 加载 .env 文件
+_root = Path(__file__).resolve().parent.parent
+load_dotenv(_root / ".env")
 
 # 确保项目根目录在 path 中，从任意目录执行 python -m server 或 python server 均可
-_root = Path(__file__).resolve().parent.parent
 if str(_root) not in sys.path:
     sys.path.insert(0, str(_root))
 

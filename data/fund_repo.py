@@ -145,6 +145,7 @@ def get_fund_nav(
     df["unit_nav"] = df["unit_nav"].astype(float)
     df["accum_nav"] = df["accum_nav"].astype(float)
     df["daily_return"] = df["daily_return"].astype(float)
+    df = df.replace({float("nan"): None})
     return df
 
 

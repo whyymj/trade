@@ -23,30 +23,6 @@ const routes = [
     component: () => import('@/views/FundPredict.vue'),
     meta: { title: '预测中心' },
   },
-  {
-    path: '/stock',
-    name: 'Home',
-    component: () => import('@/views/StockChart.vue'),
-    meta: { title: '股票列表' },
-  },
-  {
-    path: '/chart',
-    name: 'Chart',
-    component: () => import('@/views/ChartView.vue'),
-    meta: { title: '股票曲线' },
-  },
-  {
-    path: '/lstm',
-    name: 'LSTM',
-    component: () => import('@/views/LSTMView.vue'),
-    meta: { title: 'LSTM 训练与预测' },
-  },
-  {
-    path: '/ensemble',
-    name: 'Ensemble',
-    component: () => import('@/views/EnsembleView.vue'),
-    meta: { title: '集成多因子预测' },
-  },
 ]
 
 const router = createRouter({

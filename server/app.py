@@ -4,11 +4,49 @@ Flask 应用工厂：创建 app、注册蓝图、配置静态与 SPA 回退。
 前后分离：静态资源来自 frontend/dist（Vite 构建产物）。
 启动/退出时自动清理分析临时目录，无需手动执行。
 支持服务端日志：文件轮转 + 请求访问日志。
+支持每日定时同步基金数据。
 """
+
 import atexit
+import math
 from pathlib import Path
 
 from flask import Flask, abort, g, redirect, request, send_from_directory
+from apscheduler.schedulers.background import BackgroundScheduler
+
+
+def _custom_json_default(obj):
+    if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
+        return None
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+
+def _sync_all_funds():
+    """每日定时同步所有基金数据"""
+    try:
+        from data import fund_repo, fund_fetcher
+
+        result = fund_repo.get_fund_list(page=1, size=1000)
+        fund_codes = [f["fund_code"] for f in result.get("data", [])]
+        success = 0
+        for code in fund_codes:
+            try:
+                df = fund_fetcher.fetch_fund_nav(code, days=30)
+                if df is not None and not df.empty:
+                    fund_repo.upsert_fund_nav(code, df)
+                    success += 1
+            except Exception:
+                pass
+        print(f"[定时任务] 基金数据同步完成: {success}/{len(fund_codes)}")
+    except Exception as e:
+        print(f"[定时任务] 基金数据同步失败: {e}")
+
+
+scheduler = BackgroundScheduler()
+scheduler.add_job(
+    func=_sync_all_funds, trigger="cron", hour=3, minute=0, id="sync_funds"
+)
+
 
 from server.logging_config import (
     init_logging,
@@ -28,6 +66,7 @@ def _run_cleanup():
     """执行一次分析临时目录清理（静默失败）。"""
     try:
         from analysis.cleanup_temp import cleanup_analysis_temp_dirs
+
         n = cleanup_analysis_temp_dirs()
         if n > 0:
             print(f"[清理] 已清理 {n} 个分析临时目录")
@@ -39,15 +78,23 @@ def create_app(static_folder=None):
     """创建并配置 Flask 应用。启动时先清理遗留分析临时目录，退出时再清理一次；再确保数据库表已创建；初始化日志并注册请求日志。"""
     _run_cleanup()
     atexit.register(_run_cleanup)
+    atexit.register(lambda: scheduler.shutdown())
     init_logging()
     try:
         from data.schema import create_all_tables
+
         create_all_tables()
     except Exception:
         pass
+
+    if not scheduler.running:
+        scheduler.start()
+        print("[定时任务] 基金每日同步已启动 (每天 03:00 执行)")
+
     # 不设 static_folder，避免 Flask 默认静态路由对 /chart 等返回 404；由下方通配路由统一处理
     dist = str(static_folder or FRONTEND_DIST)
     app = Flask(__name__, static_folder=None)
+    app.json.default = _custom_json_default
     app.register_blueprint(api_bp)
 
     @app.before_request

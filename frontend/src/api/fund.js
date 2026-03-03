@@ -75,6 +75,10 @@ export function getBenchmark(code, benchmark = '000300') {
   return request(`/api/fund/benchmark/${code}?benchmark=${benchmark}`)
 }
 
+export function getFundCycle(code, days = 365) {
+  return request(`/api/fund/cycle/${code}?days=${days}`)
+}
+
 export function predict(code) {
   return request('/api/fund/predict', {
     method: 'POST',
