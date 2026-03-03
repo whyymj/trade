@@ -1,0 +1,15 @@
+数据目录: /Users/wuhao/Desktop/python/trade/data
+ * Serving Flask app 'server.app'
+ * Debug mode: on
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5050
+ * Running on http://172.26.201.44:5050
+[33mPress CTRL+C to quit[0m
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 680-191-149
+[INFO] trade_access: GET /api/fund/list 200 9.88ms
+127.0.0.1 - - [03/Mar/2026 11:09:49] "GET /api/fund/list HTTP/1.1" 200 -
+/Users/wuhao/.pyenv/versions/3.12.9/lib/python3.12/multiprocessing/resource_tracker.py:255: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown
+  warnings.warn('resource_tracker: There appear to be %d '

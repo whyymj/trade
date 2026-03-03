@@ -3,6 +3,7 @@
 数据 API 路由。挂载于 /api。
 接口说明见项目根目录 docs/API.md。
 """
+
 import os
 import threading
 import time
@@ -19,7 +20,11 @@ def _training_acquire(symbol: str) -> bool:
     """尝试占用训练锁，成功返回 True，已被占用返回 False。会先清理超时占用。"""
     now = time.time()
     with _training_lock:
-        expired = [s for s, t in _training_symbols_in_progress.items() if now - t > TRAINING_LOCK_MAX_SECONDS]
+        expired = [
+            s
+            for s, t in _training_symbols_in_progress.items()
+            if now - t > TRAINING_LOCK_MAX_SECONDS
+        ]
         for s in expired:
             _training_symbols_in_progress.pop(s, None)
         if symbol in _training_symbols_in_progress:
@@ -53,6 +58,7 @@ def _training_acquire_wait(symbol: str, timeout_seconds: float = None) -> bool:
         if time.time() >= deadline:
             return False
         time.sleep(5)
+
 
 from flask import Blueprint, Response, jsonify, request, send_file, send_from_directory
 import pandas as pd
@@ -132,7 +138,10 @@ except ImportError:
     run_performance_decay_detection = None
 
 try:
-    from analysis.lstm_predict_flow import model_health_check, run_training_trigger_async
+    from analysis.lstm_predict_flow import (
+        model_health_check,
+        run_training_trigger_async,
+    )
 except ImportError:
     model_health_check = None
     run_training_trigger_async = None
@@ -183,7 +192,11 @@ except ImportError:
 try:
     from analysis.factor_library import build_factor_library, get_all_factor_names
     from analysis.ensemble_models import run_ensemble_pipeline, save_ensemble_artifacts
-    from analysis.ensemble_report import generate_factor_performance_report, report_to_markdown
+    from analysis.ensemble_report import (
+        generate_factor_performance_report,
+        report_to_markdown,
+    )
+
     _ENSEMBLE_AVAILABLE = True
 except ImportError:
     _ENSEMBLE_AVAILABLE = False
@@ -198,6 +211,7 @@ except ImportError:
 def _list_stocks():
     """从数据库返回股票列表，每项含 filename（symbol）、displayName、remark、lastUpdateDate。"""
     from data import stock_repo
+
     items = stock_repo.list_stocks_from_db()
     return [
         {
@@ -209,7 +223,745 @@ def _list_stocks():
         for x in items
     ]
 
+
 api_bp = Blueprint("api", __name__, url_prefix="/api")
+
+
+# =====================================================
+# 基金 API 路由（/api/fund/*, /api/index/*, /api/sync/*）
+# =====================================================
+
+from functools import wraps
+
+from data.cache import get_cache
+
+_FUND_CACHE_TTL = {
+    "list": 30 * 60,
+    "nav": 30 * 60,
+    "indicators": 60 * 60,
+    "prediction": 5 * 60,
+    "llm": 24 * 60 * 60,
+}
+
+
+def _cache_key(prefix: str, *args, **kwargs) -> str:
+    parts = [str(a) for a in args if a]
+    parts.extend(str(v) for v in kwargs.values() if v)
+    return f"{prefix}:{':'.join(parts)}"
+
+
+def _cached(ttl_key: str):
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            cache = get_cache()
+            key = _cache_key(f.__name__, *args, **kwargs)
+            cached_val = cache.get(key)
+            if cached_val is not None:
+                return cached_val
+            result = f(*args, **kwargs)
+            ttl = _FUND_CACHE_TTL.get(ttl_key, 300)
+            cache.set(key, result, ttl)
+            return result
+
+        return wrapper
+
+    return decorator
+
+
+def _clear_fund_cache(*keys):
+    cache = get_cache()
+    for key in keys:
+        # 清除带和不带冒号的两种key
+        cache.delete(key)
+        cache.delete(key + ":")
+
+
+# ---------- 基金列表 ----------
+
+
+@api_bp.route("/fund/list", methods=["GET"])
+@_cached("list")
+def fund_list():
+    """基金列表，支持分页和类型筛选。Query: page, size, fund_type"""
+    from data import fund_repo
+
+    try:
+        page = int(request.args.get("page", 1))
+    except (TypeError, ValueError):
+        page = 1
+    try:
+        size = int(request.args.get("size", 20))
+    except (TypeError, ValueError):
+        size = 20
+    fund_type = request.args.get("fund_type", "").strip() or None
+    result = fund_repo.get_fund_list(page=page, size=size, fund_type=fund_type)
+    return jsonify(result)
+
+
+@api_bp.route("/fund/watchlist", methods=["GET"])
+@_cached("list")
+def fund_watchlist():
+    """关注列表。"""
+    from data import fund_repo
+
+    try:
+        page = int(request.args.get("page", 1))
+    except (TypeError, ValueError):
+        page = 1
+    try:
+        size = int(request.args.get("size", 20))
+    except (TypeError, ValueError):
+        size = 20
+    result = fund_repo.get_fund_list(page=page, size=size, watchlist_only=True)
+    return jsonify(result)
+
+
+@api_bp.route("/fund/add", methods=["POST"])
+def fund_add():
+    """添加基金。Body: fund_code, fund_name?, fund_type?, manager?, establishment_date?, fund_scale?
+    如果不提供 fund_name，会自动从网上抓取"""
+    from data import fund_repo, fund_fetcher
+    import pandas as pd
+
+    body = request.get_json(silent=True) or {}
+    fund_code = (body.get("fund_code") or "").strip()
+    fund_name = (body.get("fund_name") or "").strip()
+    if not fund_code:
+        return jsonify({"ok": False, "message": "缺少 fund_code"}), 400
+
+    # 如果没有提供 fund_name，自动抓取
+    if not fund_name:
+        try:
+            fund_info = fund_fetcher.fetch_fund_info(fund_code)
+            if fund_info and fund_info.get("fund_name"):
+                fund_name = fund_info.get("fund_name", "")
+        except Exception:
+            pass
+
+        # 如果仍然没有名称，使用代码作为名称
+        if not fund_name:
+            fund_name = f"基金{fund_code}"
+
+    fund_type = body.get("fund_type")
+    manager = body.get("manager")
+    establishment_date = body.get("establishment_date")
+    fund_scale = body.get("fund_scale")
+
+    try:
+        if establishment_date:
+            establishment_date = pd.to_datetime(establishment_date).strftime("%Y-%m-%d")
+        if fund_scale is not None:
+            fund_scale = float(fund_scale)
+    except Exception:
+        return jsonify({"ok": False, "message": "参数格式错误"}), 400
+
+    ok = fund_repo.add_fund(
+        fund_code=fund_code,
+        fund_name=fund_name,
+        fund_type=fund_type,
+        manager=manager,
+        establishment_date=establishment_date,
+        fund_scale=fund_scale,
+    )
+    if ok:
+        _clear_fund_cache("fund_list")
+        return jsonify({"ok": True, "message": "添加成功"})
+    return jsonify({"ok": False, "message": "添加失败"}), 500
+
+
+@api_bp.route("/fund/<code>", methods=["DELETE"])
+def fund_delete(code: str):
+    """删除基金。"""
+    from data import fund_repo
+
+    code = (code or "").strip()
+    if not code:
+        return jsonify({"ok": False, "message": "缺少基金代码"}), 400
+    n = fund_repo.delete_fund(code)
+    _clear_fund_cache("fund_list", "fund_watchlist")
+    return jsonify({"ok": True, "deleted": n})
+
+
+@api_bp.route("/fund/<code>/watch", methods=["PUT"])
+def fund_watch(code: str):
+    """关注/取消关注基金。Body: watch (true/false)"""
+    from data import fund_repo
+
+    code = (code or "").strip()
+    if not code:
+        return jsonify({"ok": False, "message": "缺少基金代码"}), 400
+    body = request.get_json(silent=True) or {}
+    watch = body.get("watch", True)
+    ok = fund_repo.update_fund_watchlist(code, bool(watch))
+    _clear_fund_cache("fund_list", "fund_watchlist")
+    if ok:
+        return jsonify({"ok": True, "message": "已关注" if watch else "已取消关注"})
+    return jsonify({"ok": False, "message": "操作失败"}), 500
+
+
+# ---------- 基金净值 ----------
+
+
+@api_bp.route("/fund/nav/<code>", methods=["GET"])
+def fund_nav(code: str):
+    """基金净值历史。Query: start?, end?"""
+    from data import fund_repo
+
+    code = (code or "").strip()
+    if not code:
+        return jsonify({"error": "缺少基金代码"}), 400
+    start_date = request.args.get("start", "").strip() or None
+    end_date = request.args.get("end", "").strip() or None
+    df = fund_repo.get_fund_nav(code, start_date=start_date, end_date=end_date)
+    if df is None or df.empty:
+        return jsonify({"error": "暂无数据"}), 404
+    return jsonify(
+        {
+            "fund_code": code,
+            "data": df.to_dict(orient="records"),
+        }
+    )
+
+
+@api_bp.route("/fund/nav/latest/<code>", methods=["GET"])
+@_cached("nav")
+def fund_nav_latest(code: str):
+    """最新净值。"""
+    from data import fund_repo
+
+    code = (code or "").strip()
+    if not code:
+        return jsonify({"error": "缺少基金代码"}), 400
+    result = fund_repo.get_latest_nav(code)
+    if result is None:
+        return jsonify({"error": "暂无数据"}), 404
+    return jsonify(result)
+
+
+# ---------- 基金分析 ----------
+
+
+@api_bp.route("/fund/indicators/<code>", methods=["GET"])
+@_cached("indicators")
+def fund_indicators(code: str):
+    """业绩指标。Query: days (默认365)"""
+    from analysis.fund_metrics import get_fund_indicators
+
+    code = (code or "").strip()
+    if not code:
+        return jsonify({"error": "缺少基金代码"}), 400
+    try:
+        days = int(request.args.get("days", 365))
+    except (TypeError, ValueError):
+        days = 365
+    result = get_fund_indicators(code, days=days)
+    if result is None:
+        return jsonify({"error": "暂无数据或计算失败"}), 404
+    return jsonify({"fund_code": code, **result})
+
+
+@api_bp.route("/fund/benchmark/<code>", methods=["GET"])
+def fund_benchmark(code: str):
+    """基准对比。Query: benchmark (默认000300)"""
+    from analysis.fund_benchmark import compare_with_benchmark, get_benchmark_data
+    from data import fund_repo
+
+    code = (code or "").strip()
+    if not code:
+        return jsonify({"error": "缺少基金代码"}), 400
+    benchmark_code = request.args.get("benchmark", "000300").strip()
+
+    fund_df = fund_repo.get_fund_nav(code)
+    if fund_df is None or fund_df.empty:
+        return jsonify({"error": "基金数据不存在"}), 404
+
+    benchmark_df = get_benchmark_data(benchmark_code)
+    if benchmark_df is None or benchmark_df.empty:
+        return jsonify({"error": f"基准指数 {benchmark_code} 数据不存在"}), 404
+
+    fund_df = fund_df.sort_values("nav_date")
+    fund_nav = fund_df.set_index("nav_date")["unit_nav"]
+    benchmark_nav = benchmark_df
+
+    common_idx = fund_nav.index.intersection(benchmark_nav.index)
+    if len(common_idx) < 10:
+        return jsonify({"error": "基金与基准数据交集不足10天"}), 400
+
+    fund_aligned = fund_nav.loc[common_idx].sort_index()
+    bench_aligned = benchmark_nav.loc[common_idx].sort_index()
+
+    fund_base = fund_aligned.iloc[0]
+    bench_base = bench_aligned.iloc[0]
+
+    fund_cum_return = ((fund_aligned / fund_base - 1) * 100).tolist()
+    bench_cum_return = ((bench_aligned / bench_base - 1) * 100).tolist()
+    dates = [str(d)[:10] for d in fund_aligned.index]
+
+    result = compare_with_benchmark(fund_nav, benchmark_nav)
+    if "error" in result:
+        return jsonify({"error": result["error"]}), 400
+
+    return jsonify(
+        {
+            "fund_code": code,
+            "benchmark": benchmark_code,
+            "dates": dates,
+            "fund_cum_return": fund_cum_return,
+            "benchmark_cum_return": bench_cum_return,
+            **result,
+        }
+    )
+
+
+# ---------- 基金预测 ----------
+
+
+@api_bp.route("/fund/predict", methods=["POST"])
+def fund_predict():
+    """预测净值。Body: fund_code"""
+    from analysis.fund_lstm import predict as fund_predict_impl
+
+    body = request.get_json(silent=True) or {}
+    fund_code = (body.get("fund_code") or "").strip()
+    if not fund_code:
+        return jsonify({"error": "缺少 fund_code"}), 400
+    result = fund_predict_impl(fund_code)
+    _clear_fund_cache(f"fund_prediction:{fund_code}")
+    return jsonify(result)
+
+
+@api_bp.route("/fund/prediction/<code>", methods=["GET"])
+@_cached("prediction")
+def fund_prediction(code: str):
+    """获取预测结果。"""
+    from analysis.fund_lstm import predict as fund_predict_impl
+
+    code = (code or "").strip()
+    if not code:
+        return jsonify({"error": "缺少基金代码"}), 400
+
+    result = fund_predict_impl(code)
+    return jsonify(result)
+
+    result = fund_predict_impl(code)
+    return jsonify(result)
+
+
+@api_bp.route("/fund/fit-plot/<code>", methods=["GET"])
+def fund_fit_plot(code: str):
+    """获取拟合曲线数据，用于前端绘图"""
+    from analysis.fund_lstm import get_fit_plot_data
+
+    code = (code or "").strip()
+    if not code:
+        return jsonify({"error": "缺少基金代码"}), 400
+
+    data = get_fit_plot_data(code)
+    if data is None:
+        return jsonify({"error": "暂无拟合数据，请先训练模型"}), 404
+
+    return jsonify(data)
+
+
+# ---------- 大模型分析 ----------
+
+
+@api_bp.route("/fund/llm-status", methods=["GET"])
+def fund_llm_status():
+    """LLM 状态检查。"""
+    from analysis.llm.client import is_available as llm_is_available
+
+    available = llm_is_available()
+    return jsonify(
+        {"available": available, "provider": "MiniMax-M2.5" if available else None}
+    )
+
+
+def _generate_llm_prompt(fund_code: str, analysis_type: str, data: dict) -> str:
+    """生成 LLM 分析提示词。"""
+    prompts = {
+        "profile": f"""请分析基金 {fund_code} 的概况：
+基金名称: {data.get("fund_name", "N/A")}
+基金类型: {data.get("fund_type", "N/A")}
+基金经理: {data.get("manager", "N/A")}
+基金规模: {data.get("fund_scale", "N/A")}
+成立日期: {data.get("establishment_date", "N/A")}
+
+请给出该基金的概况分析和投资亮点。""",
+        "performance": f"""请分析基金 {fund_code} 的业绩表现：
+{data.get("metrics", {})}
+
+请分析该基金的收益能力、风险控制能力，并给出评价。""",
+        "risk": f"""请分析基金 {fund_code} 的风险评估：
+最大回撤: {data.get("max_drawdown", "N/A")}
+波动率: {data.get("volatility", "N/A")}
+夏普比率: {data.get("sharpe_ratio", "N/A")}
+
+请评估该基金的风险等级和风险特征。""",
+    }
+    return prompts.get(analysis_type, "")
+
+
+@api_bp.route("/fund/analysis/profile/<code>", methods=["GET"])
+@_cached("llm")
+def fund_analysis_profile(code: str):
+    """概况分析。"""
+    from analysis.llm.client import get_client
+    from data import fund_repo
+    from data.cache import get_cache
+
+    code = (code or "").strip()
+    if not code:
+        return jsonify({"error": "缺少基金代码"}), 400
+
+    cache_key = f"llm_profile:{code}"
+    cached = get_cache().get(cache_key)
+    if cached:
+        return jsonify(cached)
+
+    fund_info = fund_repo.get_fund_info(code)
+    if fund_info is None:
+        return jsonify({"error": "基金不存在"}), 404
+
+    client = get_client()
+    if client is None or not client.is_available():
+        return jsonify({"error": "LLM 服务不可用"}), 503
+
+    try:
+        prompt = _generate_llm_prompt(code, "profile", fund_info)
+        result = client.chat([{"role": "user", "content": prompt}])
+        response = {"fund_code": code, "analysis": result}
+        get_cache().set(cache_key, response, _FUND_CACHE_TTL["llm"])
+        return jsonify(response)
+    except Exception as e:
+        return jsonify({"error": f"分析失败: {e}"}), 500
+
+
+@api_bp.route("/fund/analysis/performance/<code>", methods=["GET"])
+@_cached("llm")
+def fund_analysis_performance(code: str):
+    """业绩归因。"""
+    from analysis.llm.client import get_client
+    from analysis.fund_metrics import get_fund_indicators
+    from data.cache import get_cache
+
+    code = (code or "").strip()
+    if not code:
+        return jsonify({"error": "缺少基金代码"}), 400
+
+    cache_key = f"llm_performance:{code}"
+    cached = get_cache().get(cache_key)
+    if cached:
+        return jsonify(cached)
+
+    metrics = get_fund_indicators(code, days=365)
+    if metrics is None:
+        return jsonify({"error": "无法获取业绩数据"}), 404
+
+    client = get_client()
+    if client is None or not client.is_available():
+        return jsonify({"error": "LLM 服务不可用"}), 503
+
+    try:
+        prompt = _generate_llm_prompt(code, "performance", {"metrics": metrics})
+        result = client.chat([{"role": "user", "content": prompt}])
+        response = {"fund_code": code, "metrics": metrics, "analysis": result}
+        get_cache().set(cache_key, response, _FUND_CACHE_TTL["llm"])
+        return jsonify(response)
+    except Exception as e:
+        return jsonify({"error": f"分析失败: {e}"}), 500
+
+
+@api_bp.route("/fund/analysis/risk/<code>", methods=["GET"])
+@_cached("llm")
+def fund_analysis_risk(code: str):
+    """风险评估。"""
+    from analysis.llm.client import get_client
+    from analysis.fund_metrics import get_fund_indicators
+    from data.cache import get_cache
+
+    code = (code or "").strip()
+    if not code:
+        return jsonify({"error": "缺少基金代码"}), 400
+
+    cache_key = f"llm_risk:{code}"
+    cached = get_cache().get(cache_key)
+    if cached:
+        return jsonify(cached)
+
+    metrics = get_fund_indicators(code, days=365)
+    if metrics is None:
+        return jsonify({"error": "无法获取风险数据"}), 404
+
+    client = get_client()
+    if client is None or not client.is_available():
+        return jsonify({"error": "LLM 服务不可用"}), 503
+
+    try:
+        prompt = _generate_llm_prompt(code, "risk", metrics)
+        result = client.chat([{"role": "user", "content": prompt}])
+        response = {"fund_code": code, "metrics": metrics, "analysis": result}
+        get_cache().set(cache_key, response, _FUND_CACHE_TTL["llm"])
+        return jsonify(response)
+    except Exception as e:
+        return jsonify({"error": f"分析失败: {e}"}), 500
+
+
+@api_bp.route("/fund/advice/<code>", methods=["GET"])
+@_cached("llm")
+def fund_advice(code: str):
+    """投资建议。"""
+    from analysis.llm.client import get_client
+    from analysis.fund_metrics import get_fund_indicators
+    from analysis.fund_benchmark import compare_with_benchmark, get_benchmark_data
+    from data import fund_repo
+    from data.cache import get_cache
+
+    code = (code or "").strip()
+    if not code:
+        return jsonify({"error": "缺少基金代码"}), 400
+
+    cache_key = f"llm_advice:{code}"
+    cached = get_cache().get(cache_key)
+    if cached:
+        return jsonify(cached)
+
+    fund_info = fund_repo.get_fund_info(code)
+    metrics = get_fund_indicators(code, days=365) if fund_info else None
+
+    benchmark_code = "000300"
+    benchmark_df = get_benchmark_data(benchmark_code)
+    fund_df = fund_repo.get_fund_nav(code)
+    comparison = None
+    if fund_df is not None and benchmark_df is not None:
+        fund_df = fund_df.sort_values("nav_date")
+        fund_nav_series = fund_df.set_index("nav_date")["unit_nav"]
+        comparison = compare_with_benchmark(fund_nav_series, benchmark_df)
+
+    client = get_client()
+    if client is None or not client.is_available():
+        return jsonify({"error": "LLM 服务不可用"}), 503
+
+    try:
+        prompt = f"""请为基金 {code} 提供投资建议。
+
+基金概况:
+- 名称: {fund_info.get("fund_name", "N/A") if fund_info else "N/A"}
+- 类型: {fund_info.get("fund_type", "N/A") if fund_info else "N/A"}
+
+业绩指标:
+- 年化收益率: {metrics.get("annual_return", "N/A") if metrics else "N/A"}
+- 夏普比率: {metrics.get("sharpe_ratio", "N/A") if metrics else "N/A"}
+- 最大回撤: {metrics.get("max_drawdown", "N/A") if metrics else "N/A"}
+- 卡玛比率: {metrics.get("calmar_ratio", "N/A") if metrics else "N/A"}
+
+基准对比 (沪深300):
+- Alpha: {comparison.get("alpha", "N/A") if comparison else "N/A"}
+- Beta: {comparison.get("beta", "N/A") if comparison else "N/A"}
+
+请给出综合投资建议，包括是否推荐持有、适合的投资者类型、风险提示等。"""
+        result = client.chat([{"role": "user", "content": prompt}])
+        response = {"fund_code": code, "advice": result}
+        get_cache().set(cache_key, response, _FUND_CACHE_TTL["llm"])
+        return jsonify(response)
+    except Exception as e:
+        return jsonify({"error": f"分析失败: {e}"}), 500
+
+
+@api_bp.route("/fund/report/<code>", methods=["GET"])
+@_cached("llm")
+def fund_report(code: str):
+    """完整报告。"""
+    from analysis.llm.client import get_client
+    from analysis.fund_metrics import get_fund_indicators
+    from analysis.fund_benchmark import compare_with_benchmark, get_benchmark_data
+    from data import fund_repo
+    from data.cache import get_cache
+
+    code = (code or "").strip()
+    if not code:
+        return jsonify({"error": "缺少基金代码"}), 400
+
+    cache_key = f"llm_report:{code}"
+    cached = get_cache().get(cache_key)
+    if cached:
+        return jsonify(cached)
+
+    fund_info = fund_repo.get_fund_info(code)
+    metrics = get_fund_indicators(code, days=365) if fund_info else None
+
+    benchmark_code = "000300"
+    benchmark_df = get_benchmark_data(benchmark_code)
+    fund_df = fund_repo.get_fund_nav(code)
+    comparison = None
+    if fund_df is not None and benchmark_df is not None:
+        fund_df = fund_df.sort_values("nav_date")
+        fund_nav_series = fund_df.set_index("nav_date")["unit_nav"]
+        comparison = compare_with_benchmark(fund_nav_series, benchmark_df)
+
+    client = get_client()
+    if client is None or not client.is_available():
+        return jsonify({"error": "LLM 服务不可用"}), 503
+
+    try:
+        prompt = f"""请为基金 {code} 生成一份完整的分析报告，包含以下内容：
+
+1. 基金概况
+2. 业绩分析
+3. 风险评估
+4. 基准对比
+5. 投资建议
+
+基金信息:
+{str(fund_info) if fund_info else "N/A"}
+
+业绩指标:
+{str(metrics) if metrics else "N/A"}
+
+基准对比 (沪深300):
+{str(comparison) if comparison else "N/A"}
+
+请用 Markdown 格式输出完整报告。"""
+        result = client.chat([{"role": "user", "content": prompt}])
+        response = {"fund_code": code, "report": result}
+        get_cache().set(cache_key, response, _FUND_CACHE_TTL["llm"])
+        return jsonify(response)
+    except Exception as e:
+        return jsonify({"error": f"报告生成失败: {e}"}), 500
+
+
+# ---------- 指数数据 ----------
+
+
+@api_bp.route("/index/list", methods=["GET"])
+@_cached("list")
+def index_list():
+    """指数列表。"""
+    from data import index_repo
+
+    result = index_repo.get_index_list()
+    return jsonify({"data": result})
+
+
+@api_bp.route("/index/data/<code>", methods=["GET"])
+@_cached("nav")
+def index_data(code: str):
+    """指数数据。Query: start?, end?"""
+    from data import index_repo
+
+    code = (code or "").strip()
+    if not code:
+        return jsonify({"error": "缺少指数代码"}), 400
+    start_date = request.args.get("start", "").strip() or None
+    end_date = request.args.get("end", "").strip() or None
+    df = index_repo.get_index_data(code, start_date=start_date, end_date=end_date)
+    if df is None or df.empty:
+        return jsonify({"error": "暂无数据"}), 404
+    return jsonify(
+        {
+            "index_code": code,
+            "data": df.to_dict(orient="records"),
+        }
+    )
+
+
+# ---------- 数据同步 ----------
+
+
+@api_bp.route("/sync/funds", methods=["POST"])
+def sync_funds():
+    """同步基金数据。Body: fund_codes[] (可选，默认全部)"""
+    from data import fund_repo
+    import pandas as pd
+    from datetime import date, timedelta
+
+    body = request.get_json(silent=True) or {}
+    fund_codes = body.get("fund_codes") or []
+
+    if not fund_codes:
+        result = fund_repo.get_fund_list(page=1, size=1000)
+        fund_codes = [f["fund_code"] for f in result.get("data", [])]
+
+    from data import fund_fetcher
+
+    results = []
+
+    for code in fund_codes:
+        try:
+            df = fund_fetcher.fetch_fund_nav(code, days=365)
+            if df is not None and not df.empty:
+                n = fund_repo.upsert_fund_nav(code, df)
+                results.append({"code": code, "ok": True, "updated": n})
+            else:
+                results.append({"code": code, "ok": False, "error": "无数据"})
+        except Exception as e:
+            results.append({"code": code, "ok": False, "error": str(e)})
+
+    _clear_fund_cache("fund_list", "fund_watchlist")
+    success = sum(1 for r in results if r.get("ok"))
+    return jsonify(
+        {
+            "total": len(results),
+            "success": success,
+            "failed": len(results) - success,
+            "results": results,
+        }
+    )
+
+
+@api_bp.route("/sync/index", methods=["POST"])
+def sync_index():
+    """同步指数数据。Body: index_codes[] (可选，默认常用指数)"""
+    from data import index_repo
+    import pandas as pd
+
+    body = request.get_json(silent=True) or {}
+    index_codes = body.get("index_codes") or [
+        "000300",
+        "000905",
+        "000852",
+        "000001",
+        "399006",
+    ]
+
+    try:
+        import akshare as ak
+    except ImportError:
+        return jsonify({"error": "akshare 未安装"}), 503
+
+    results = []
+
+    for code in index_codes:
+        try:
+            df = ak.stock_zh_index_daily(symbol=code)
+            if df is not None and not df.empty:
+                df = df.rename(columns={"date": "trade_date", "close": "close_price"})
+                df["trade_date"] = pd.to_datetime(df["trade_date"]).dt.date
+                df["daily_return"] = df["close_price"].pct_change()
+                df = df[["trade_date", "close_price", "daily_return"]]
+                n = index_repo.upsert_index_data(code, df)
+                results.append({"code": code, "ok": True, "updated": n})
+            else:
+                results.append({"code": code, "ok": False, "error": "无数据"})
+        except Exception as e:
+            results.append({"code": code, "ok": False, "error": str(e)})
+
+    _clear_fund_cache("index_list")
+    success = sum(1 for r in results if r.get("ok"))
+    return jsonify(
+        {
+            "total": len(results),
+            "success": success,
+            "failed": len(results) - success,
+            "results": results,
+        }
+    )
+
+
+# =====================================================
+# 原有 LSTM/股票 路由（保留）
+# =====================================================
 
 
 @api_bp.route("/fetch_data/<stock_code>", methods=["GET"])
@@ -287,7 +1039,12 @@ def _normalize_ymd(s: str) -> str:
 def get_data():
     """按 file 参数（股票代码 symbol）从数据库读取日线并返回图表用 JSON。可选 start、end（YYYY-MM-DD）指定时间范围。"""
     file_or_code = request.args.get("file", "").strip()
-    if not file_or_code or ".." in file_or_code or "/" in file_or_code or "\\" in file_or_code:
+    if (
+        not file_or_code
+        or ".." in file_or_code
+        or "/" in file_or_code
+        or "\\" in file_or_code
+    ):
         return jsonify({"error": "缺少或非法 file 参数"}), 400
     symbol = file_or_code
     start_arg = _normalize_ymd(request.args.get("start", ""))
@@ -351,7 +1108,9 @@ def get_data_range():
     except (TypeError, ValueError):
         page, size = 1, 20
     try:
-        out = stock_repo.get_stock_daily_by_range(symbols, start or None, end or None, page=page, page_size=size)
+        out = stock_repo.get_stock_daily_by_range(
+            symbols, start or None, end or None, page=page, page_size=size
+        )
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     return jsonify(out)
@@ -442,7 +1201,8 @@ def analyze_stock():
                         p = p * (1 + float(m))
                         predicted.append(p)
                     result["summary"]["lstm_forecast"] = [
-                        {"date": dt, "predicted": pr} for dt, pr in zip(forecast_dates, predicted)
+                        {"date": dt, "predicted": pr}
+                        for dt, pr in zip(forecast_dates, predicted)
                     ]
         except Exception:
             pass
@@ -469,7 +1229,10 @@ def _build_lstm_section_for_export(symbol: str) -> str | None:
             lines.append(f"- **看涨概率**: {float(prob) * 100:.1f}%")
         mag5 = pred.get("magnitude_5")
         if isinstance(mag5, list) and len(mag5) >= 5:
-            lines.append("- **未来 5 日逐日涨跌幅**: " + ", ".join(f"{float(m) * 100:.2f}%" for m in mag5[:5]))
+            lines.append(
+                "- **未来 5 日逐日涨跌幅**: "
+                + ", ".join(f"{float(m) * 100:.2f}%" for m in mag5[:5])
+            )
         lines.append("")
         return "\n".join(lines)
     except Exception:
@@ -508,6 +1271,7 @@ def export_analysis():
     except Exception as e:
         return jsonify({"error": f"分析或导出失败: {e}"}), 500
     from datetime import datetime
+
     safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in symbol)
     filename = f"{safe_name}_分析报告_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
     return Response(
@@ -522,6 +1286,7 @@ def export_analysis():
 def __quote_filename(name: str) -> str:
     """对文件名做 RFC 5987 编码，用于 Content-Disposition。"""
     from urllib.parse import quote
+
     return quote(name, safe="")
 
 
@@ -535,10 +1300,16 @@ def ensemble_factor_report():
     Query: symbol=600519, start=YYYY-MM-DD, end=YYYY-MM-DD, forward_days=5, rolling_window=20
     返回: summary, report_md, top_ic_factors, top_rank_ic_factors, n_factors 等。
     """
-    if not _ENSEMBLE_AVAILABLE or generate_factor_performance_report is None or report_to_markdown is None:
-        return jsonify({
-            "error": "集成学习模块不可用。请安装依赖：pip install xgboost lightgbm（或 pip install -r requirements.txt）",
-        }), 503
+    if (
+        not _ENSEMBLE_AVAILABLE
+        or generate_factor_performance_report is None
+        or report_to_markdown is None
+    ):
+        return jsonify(
+            {
+                "error": "集成学习模块不可用。请安装依赖：pip install xgboost lightgbm（或 pip install -r requirements.txt）",
+            }
+        ), 503
     symbol = request.args.get("symbol", "").strip()
     if not symbol or ".." in symbol or "/" in symbol or "\\" in symbol:
         return jsonify({"error": "缺少或非法 symbol 参数"}), 400
@@ -564,26 +1335,35 @@ def ensemble_factor_report():
         return jsonify({"error": "数据缺少收盘价列"}), 400
     try:
         factor_df = build_factor_library(df)
-        forward_return = df[close_col].astype(float).pct_change(forward_days).shift(-forward_days)
+        forward_return = (
+            df[close_col].astype(float).pct_change(forward_days).shift(-forward_days)
+        )
         report = generate_factor_performance_report(
-            factor_df, forward_return.dropna(),
-            rolling_window=rolling_window, top_pct=0.2, n_groups=5,
+            factor_df,
+            forward_return.dropna(),
+            rolling_window=rolling_window,
+            top_pct=0.2,
+            n_groups=5,
         )
         report_md = report_to_markdown(report)
     except Exception as e:
         return jsonify({"error": f"因子报告生成失败: {e}"}), 500
-    return jsonify({
-        "symbol": symbol,
-        "start": start_arg,
-        "end": end_arg,
-        "forward_days": forward_days,
-        "n_factors": report["summary"]["n_factors"],
-        "n_observations": report["summary"]["n_observations"],
-        "report_md": report_md,
-        "top_ic_factors": report.get("top_ic_factors", [])[:15],
-        "top_rank_ic_factors": report.get("top_rank_ic_factors", [])[:15],
-        "long_short_return": {k: v for k, v in list(report.get("long_short_return", {}).items())[:15]},
-    })
+    return jsonify(
+        {
+            "symbol": symbol,
+            "start": start_arg,
+            "end": end_arg,
+            "forward_days": forward_days,
+            "n_factors": report["summary"]["n_factors"],
+            "n_observations": report["summary"]["n_observations"],
+            "report_md": report_md,
+            "top_ic_factors": report.get("top_ic_factors", [])[:15],
+            "top_rank_ic_factors": report.get("top_rank_ic_factors", [])[:15],
+            "long_short_return": {
+                k: v for k, v in list(report.get("long_short_return", {}).items())[:15]
+            },
+        }
+    )
 
 
 @api_bp.route("/ensemble/train", methods=["POST"])
@@ -595,9 +1375,11 @@ def ensemble_train():
     返回: val_auc, val_accuracy, ensemble_weights, feature_names, rf_feature_importance, n_samples 等。
     """
     if not _ENSEMBLE_AVAILABLE or run_ensemble_pipeline is None:
-        return jsonify({
-            "error": "集成学习模块不可用。请安装依赖：pip install xgboost lightgbm（或 pip install -r requirements.txt）",
-        }), 503
+        return jsonify(
+            {
+                "error": "集成学习模块不可用。请安装依赖：pip install xgboost lightgbm（或 pip install -r requirements.txt）",
+            }
+        ), 503
     data = request.get_json(silent=True) or {}
     symbol = (data.get("symbol") or "").strip()
     if not symbol or ".." in symbol or "/" in symbol or "\\" in symbol:
@@ -621,9 +1403,12 @@ def ensemble_train():
         return jsonify({"error": "数据缺少收盘价列"}), 400
     try:
         factor_df = build_factor_library(df)
-        forward_return = df[close_col].astype(float).pct_change(forward_days).shift(-forward_days)
+        forward_return = (
+            df[close_col].astype(float).pct_change(forward_days).shift(-forward_days)
+        )
         result = run_ensemble_pipeline(
-            factor_df, forward_return,
+            factor_df,
+            forward_return,
             task="classification",
             train_ratio=train_ratio,
             use_rfe=use_rfe,
@@ -639,27 +1424,32 @@ def ensemble_train():
     out_dir = None
     try:
         from pathlib import Path
-        _ens_dir = Path(__file__).resolve().parent.parent.parent / "analysis_temp" / "ensemble"
+
+        _ens_dir = (
+            Path(__file__).resolve().parent.parent.parent / "analysis_temp" / "ensemble"
+        )
         save_ensemble_artifacts(result, _ens_dir)
         out_dir = str(_ens_dir)
     except Exception:
         pass
-    return jsonify({
-        "symbol": symbol,
-        "start": start_arg,
-        "end": end_arg,
-        "forward_days": forward_days,
-        "n_samples": result.get("n_samples"),
-        "n_features_used": result.get("n_features_used"),
-        "val_auc": result.get("val_auc"),
-        "val_accuracy": result.get("val_accuracy"),
-        "val_rmse": result.get("val_rmse"),
-        "ensemble_weights": result.get("ensemble_weights"),
-        "optimized_metric": result.get("optimized_metric"),
-        "feature_names": result.get("feature_names", [])[:30],
-        "rf_feature_importance": result.get("rf_feature_importance", [])[:20],
-        "artifacts_saved_to": out_dir,
-    })
+    return jsonify(
+        {
+            "symbol": symbol,
+            "start": start_arg,
+            "end": end_arg,
+            "forward_days": forward_days,
+            "n_samples": result.get("n_samples"),
+            "n_features_used": result.get("n_features_used"),
+            "val_auc": result.get("val_auc"),
+            "val_accuracy": result.get("val_accuracy"),
+            "val_rmse": result.get("val_rmse"),
+            "ensemble_weights": result.get("ensemble_weights"),
+            "optimized_metric": result.get("optimized_metric"),
+            "feature_names": result.get("feature_names", [])[:30],
+            "rf_feature_importance": result.get("rf_feature_importance", [])[:20],
+            "artifacts_saved_to": out_dir,
+        }
+    )
 
 
 # ---------- LSTM 深度学习预测 ----------
@@ -672,7 +1462,11 @@ def lstm_recommended_range():
     Query: years=1|2（默认 1，表示最近 N 年）; use_config=1 时优先使用 config 的 start_date/end_date。
     返回: { start, end, hint }，日期格式 YYYY-MM-DD。
     """
-    use_config = request.args.get("use_config", "").strip().lower() in ("1", "true", "yes")
+    use_config = request.args.get("use_config", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
     if use_config:
         start_date, end_date, _ = get_date_range_from_config()
         start = (start_date or "")[:10] if start_date else ""
@@ -681,11 +1475,13 @@ def lstm_recommended_range():
             start = f"{start_date[:4]}-{start_date[4:6]}-{start_date[6:8]}"
         if len(end_date or "") >= 8:
             end = f"{end_date[:4]}-{end_date[4:6]}-{end_date[6:8]}"
-        return jsonify({
-            "start": start or None,
-            "end": end or None,
-            "hint": "与配置一致",
-        })
+        return jsonify(
+            {
+                "start": start or None,
+                "end": end or None,
+                "hint": "与配置一致",
+            }
+        )
     try:
         years = int(request.args.get("years", "1").strip() or "1")
         years = max(1, min(5, years))
@@ -695,11 +1491,13 @@ def lstm_recommended_range():
     end = today.isoformat()
     start_date = today - timedelta(days=years * 365)
     start = start_date.isoformat()
-    return jsonify({
-        "start": start,
-        "end": end,
-        "hint": f"最近 {years} 年",
-    })
+    return jsonify(
+        {
+            "start": start,
+            "end": end,
+            "hint": f"最近 {years} 年",
+        }
+    )
 
 
 def _date_range_for_years(years: int):
@@ -765,8 +1563,15 @@ def lstm_train():
                     stop_event=stop_event,
                 )
                 if "error" in result:
-                    if record_training_failure is not None and DEFAULT_MODEL_DIR is not None:
-                        record_training_failure(symbol=symbol, error_message=result.get("error", "未知错误"), save_dir=DEFAULT_MODEL_DIR)
+                    if (
+                        record_training_failure is not None
+                        and DEFAULT_MODEL_DIR is not None
+                    ):
+                        record_training_failure(
+                            symbol=symbol,
+                            error_message=result.get("error", "未知错误"),
+                            save_dir=DEFAULT_MODEL_DIR,
+                        )
                     _training_release(symbol)
                     return jsonify(result), 400
                 if insert_training_run is not None:
@@ -778,19 +1583,24 @@ def lstm_train():
                             symbol=result.get("symbol", symbol),
                             training_type="full",
                             trigger_type="manual",
-                            data_start=result.get("data_start") or meta.get("data_start"),
+                            data_start=result.get("data_start")
+                            or meta.get("data_start"),
                             data_end=result.get("data_end") or meta.get("data_end"),
                             params={
                                 "lr": meta.get("lr"),
                                 "hidden_size": meta.get("hidden_size"),
                                 "epochs": meta.get("epochs"),
                                 "reg_loss_type": meta.get("reg_loss_type"),
-                                "use_improved_training": meta.get("use_improved_training"),
+                                "use_improved_training": meta.get(
+                                    "use_improved_training"
+                                ),
                             },
                             metrics=result.get("metrics"),
                             validation_deployed=validation.get("deployed", False),
                             validation_reason=validation.get("reason"),
-                            holdout_metrics=validation.get("new_holdout_metrics") if validation else None,
+                            holdout_metrics=validation.get("new_holdout_metrics")
+                            if validation
+                            else None,
                         )
                     except Exception:
                         pass
@@ -805,7 +1615,9 @@ def lstm_train():
             end_arg = end_date.replace("-", "")[:8] if end_date else ""
         if not start_arg or not end_arg:
             _training_release(symbol)
-            return jsonify({"error": "请提供 start 与 end（YYYY-MM-DD）或配置日期范围"}), 400
+            return jsonify(
+                {"error": "请提供 start 与 end（YYYY-MM-DD）或配置日期范围"}
+            ), 400
         df = fetch_hist(symbol, start_arg, end_arg)
         if df is None or df.empty:
             _training_release(symbol)
@@ -831,19 +1643,29 @@ def lstm_train():
     except RuntimeError as e:
         _training_release(symbol)
         if "PyTorch" in str(e) or "torch" in str(e) or "scikit-learn" in str(e):
-            return jsonify({"error": "LSTM 模块不可用，请安装 torch、scikit-learn"}), 503
+            return jsonify(
+                {"error": "LSTM 模块不可用，请安装 torch、scikit-learn"}
+            ), 503
         if record_training_failure is not None and DEFAULT_MODEL_DIR is not None:
-            record_training_failure(symbol=symbol, error_message=str(e), save_dir=DEFAULT_MODEL_DIR)
+            record_training_failure(
+                symbol=symbol, error_message=str(e), save_dir=DEFAULT_MODEL_DIR
+            )
         return jsonify({"error": f"LSTM 训练失败: {e}"}), 500
     except Exception as e:
         if record_training_failure is not None and DEFAULT_MODEL_DIR is not None:
-            record_training_failure(symbol=symbol, error_message=str(e), save_dir=DEFAULT_MODEL_DIR)
+            record_training_failure(
+                symbol=symbol, error_message=str(e), save_dir=DEFAULT_MODEL_DIR
+            )
         _training_release(symbol)
         return jsonify({"error": f"LSTM 训练失败: {e}"}), 500
     _training_release(symbol)
     if "error" in result:
         if record_training_failure is not None and DEFAULT_MODEL_DIR is not None:
-            record_training_failure(symbol=symbol, error_message=result.get("error", "未知错误"), save_dir=DEFAULT_MODEL_DIR)
+            record_training_failure(
+                symbol=symbol,
+                error_message=result.get("error", "未知错误"),
+                save_dir=DEFAULT_MODEL_DIR,
+            )
         return jsonify(result), 400
     if insert_training_run is not None:
         try:
@@ -866,7 +1688,9 @@ def lstm_train():
                 metrics=result.get("metrics"),
                 validation_deployed=validation.get("deployed", False),
                 validation_reason=validation.get("reason"),
-                holdout_metrics=validation.get("new_holdout_metrics") if validation else None,
+                holdout_metrics=validation.get("new_holdout_metrics")
+                if validation
+                else None,
             )
         except Exception:
             pass
@@ -908,7 +1732,15 @@ def lstm_train_all():
         files = []
     symbols = [x["filename"] for x in files if (x.get("filename") or "").strip()]
     if not symbols:
-        return jsonify({"error": "当前无股票数据，请先在股票列表或数据管理中添加股票", "results": [], "total": 0, "success_count": 0, "fail_count": 0}), 400
+        return jsonify(
+            {
+                "error": "当前无股票数据，请先在股票列表或数据管理中添加股票",
+                "results": [],
+                "total": 0,
+                "success_count": 0,
+                "fail_count": 0,
+            }
+        ), 400
 
     start_arg = _normalize_ymd(body.get("start", ""))
     end_arg = _normalize_ymd(body.get("end", ""))
@@ -935,14 +1767,18 @@ def lstm_train_all():
             results.append({"symbol": symbol, "ok": False, "error": "非法代码"})
             continue
         if not _training_acquire_wait(symbol):
-            results.append({"symbol": symbol, "ok": False, "error": "等待训练超时，已跳过"})
+            results.append(
+                {"symbol": symbol, "ok": False, "error": "等待训练超时，已跳过"}
+            )
             continue
         stop_event = _training_get_or_create_stop_event(symbol)
         stop_event.clear()
         try:
             df = fetch_hist(symbol, start_arg, end_arg)
             if df is None or df.empty:
-                results.append({"symbol": symbol, "ok": False, "error": "暂无数据或拉取失败"})
+                results.append(
+                    {"symbol": symbol, "ok": False, "error": "暂无数据或拉取失败"}
+                )
                 continue
             years_param = max(1, min(3, years))
             result = run_lstm_pipeline(
@@ -952,7 +1788,16 @@ def lstm_train_all():
                 do_cv_tune=do_cv_tune,
                 do_shap=do_shap,
                 do_plot=do_plot,
-                param_grid=({"lr": [5e-4], "hidden_size": [32], "epochs": [25], "batch_size": 32} if fast_training else None),
+                param_grid=(
+                    {
+                        "lr": [5e-4],
+                        "hidden_size": [32],
+                        "epochs": [25],
+                        "batch_size": 32,
+                    }
+                    if fast_training
+                    else None
+                ),
                 fast_training=fast_training,
                 years=years_param,
                 use_improved_training=use_improved_training,
@@ -960,9 +1805,22 @@ def lstm_train_all():
                 stop_event=stop_event,
             )
             if result.get("error"):
-                results.append({"symbol": symbol, "ok": False, "error": result.get("error", "训练失败")})
-                if record_training_failure is not None and DEFAULT_MODEL_DIR is not None:
-                    record_training_failure(symbol=symbol, error_message=result.get("error", ""), save_dir=DEFAULT_MODEL_DIR)
+                results.append(
+                    {
+                        "symbol": symbol,
+                        "ok": False,
+                        "error": result.get("error", "训练失败"),
+                    }
+                )
+                if (
+                    record_training_failure is not None
+                    and DEFAULT_MODEL_DIR is not None
+                ):
+                    record_training_failure(
+                        symbol=symbol,
+                        error_message=result.get("error", ""),
+                        save_dir=DEFAULT_MODEL_DIR,
+                    )
             else:
                 vid = (result.get("metadata") or {}).get("version_id")
                 results.append({"symbol": symbol, "ok": True, "version_id": vid})
@@ -975,46 +1833,67 @@ def lstm_train_all():
                             symbol=result.get("symbol", symbol),
                             training_type="full",
                             trigger_type="manual",
-                            data_start=result.get("data_start") or meta.get("data_start"),
+                            data_start=result.get("data_start")
+                            or meta.get("data_start"),
                             data_end=result.get("data_end") or meta.get("data_end"),
                             params={
                                 "lr": meta.get("lr"),
                                 "hidden_size": meta.get("hidden_size"),
                                 "epochs": meta.get("epochs"),
                                 "reg_loss_type": meta.get("reg_loss_type"),
-                                "use_improved_training": meta.get("use_improved_training"),
+                                "use_improved_training": meta.get(
+                                    "use_improved_training"
+                                ),
                             },
                             metrics=result.get("metrics"),
                             validation_deployed=validation.get("deployed", False),
                             validation_reason=validation.get("reason"),
-                            holdout_metrics=validation.get("new_holdout_metrics") if validation else None,
+                            holdout_metrics=validation.get("new_holdout_metrics")
+                            if validation
+                            else None,
                         )
                     except Exception:
                         pass
         except (ImportError, ModuleNotFoundError) as e:
             _training_release(symbol)
-            return jsonify({"error": "LSTM 模块不可用，请安装 torch、scikit-learn", "results": results}), 503
+            return jsonify(
+                {
+                    "error": "LSTM 模块不可用，请安装 torch、scikit-learn",
+                    "results": results,
+                }
+            ), 503
         except RuntimeError as e:
             if "PyTorch" in str(e) or "torch" in str(e) or "scikit-learn" in str(e):
                 _training_release(symbol)
-                return jsonify({"error": "LSTM 模块不可用，请安装 torch、scikit-learn", "results": results}), 503
+                return jsonify(
+                    {
+                        "error": "LSTM 模块不可用，请安装 torch、scikit-learn",
+                        "results": results,
+                    }
+                ), 503
             results.append({"symbol": symbol, "ok": False, "error": str(e)})
             if record_training_failure is not None and DEFAULT_MODEL_DIR is not None:
-                record_training_failure(symbol=symbol, error_message=str(e), save_dir=DEFAULT_MODEL_DIR)
+                record_training_failure(
+                    symbol=symbol, error_message=str(e), save_dir=DEFAULT_MODEL_DIR
+                )
         except Exception as e:
             results.append({"symbol": symbol, "ok": False, "error": str(e)})
             if record_training_failure is not None and DEFAULT_MODEL_DIR is not None:
-                record_training_failure(symbol=symbol, error_message=str(e), save_dir=DEFAULT_MODEL_DIR)
+                record_training_failure(
+                    symbol=symbol, error_message=str(e), save_dir=DEFAULT_MODEL_DIR
+                )
         finally:
             _training_release(symbol)
 
     success_count = sum(1 for r in results if r.get("ok"))
-    return jsonify({
-        "results": results,
-        "total": len(results),
-        "success_count": success_count,
-        "fail_count": len(results) - success_count,
-    })
+    return jsonify(
+        {
+            "results": results,
+            "total": len(results),
+            "success_count": success_count,
+            "fail_count": len(results) - success_count,
+        }
+    )
 
 
 def _lstm_predict_single(model, X, y_mag_mean=None, y_mag_std=None):
@@ -1024,6 +1903,7 @@ def _lstm_predict_single(model, X, y_mag_mean=None, y_mag_std=None):
     """
     import torch
     import numpy as np
+
     x_last = torch.from_numpy(X[-1:]).float()
     model.eval()
     with torch.no_grad():
@@ -1064,7 +1944,11 @@ def lstm_predict():
     except (TypeError, ValueError):
         years = 3
     use_fallback = request.args.get("use_fallback", "0").strip() in ("1", "true", "yes")
-    trigger_train_async = request.args.get("trigger_train_async", "0").strip() in ("1", "true", "yes")
+    trigger_train_async = request.args.get("trigger_train_async", "0").strip() in (
+        "1",
+        "true",
+        "yes",
+    )
     start_date, end_date, _ = get_date_range_from_config()
     df = fetch_hist(symbol, start_date, end_date)
     if df is None or df.empty:
@@ -1078,13 +1962,22 @@ def lstm_predict():
         try:
             _years = years
             _symbol = symbol
+
             def _predict_lstm_with_meta(model, X, metadata=None):
                 m = metadata or {}
-                return _lstm_predict_single(model, X, m.get("y_mag_mean"), m.get("y_mag_std"))
+                return _lstm_predict_single(
+                    model, X, m.get("y_mag_mean"), m.get("y_mag_std")
+                )
+
             out = predict_with_fallback(
                 symbol=symbol,
                 df=df,
-                load_model_fn=lambda **kw: load_model(device=__import__("torch").device("cpu"), symbol=_symbol, years=_years, **kw),
+                load_model_fn=lambda **kw: load_model(
+                    device=__import__("torch").device("cpu"),
+                    symbol=_symbol,
+                    years=_years,
+                    **kw,
+                ),
                 build_features_fn=build_features_from_df,
                 predict_lstm_fn=_predict_lstm_with_meta,
                 save_dir=DEFAULT_MODEL_DIR,
@@ -1093,8 +1986,15 @@ def lstm_predict():
                 out["model_health"] = health
             if record_prediction is not None and DEFAULT_MODEL_DIR is not None:
                 from datetime import date
+
                 predict_date = date.today().strftime("%Y-%m-%d")
-                version_id = get_current_version_id(DEFAULT_MODEL_DIR, symbol=symbol, years=years) if get_current_version_id and out.get("source") == "lstm" else None
+                version_id = (
+                    get_current_version_id(
+                        DEFAULT_MODEL_DIR, symbol=symbol, years=years
+                    )
+                    if get_current_version_id and out.get("source") == "lstm"
+                    else None
+                )
                 record_prediction(
                     symbol=symbol,
                     predict_date=predict_date,
@@ -1107,7 +2007,12 @@ def lstm_predict():
                     years=years,
                     magnitude_5=out.get("magnitude_5"),
                 )
-            if trigger_train_async and run_training_trigger_async is not None and check_triggers is not None and run_triggered_training is not None:
+            if (
+                trigger_train_async
+                and run_training_trigger_async is not None
+                and check_triggers is not None
+                and run_triggered_training is not None
+            ):
                 run_training_trigger_async(
                     symbol=symbol,
                     check_triggers_fn=check_triggers,
@@ -1124,19 +2029,31 @@ def lstm_predict():
     # 仅 LSTM 预测（按当前股票 + 年份加载对应模型）
     try:
         import torch
-        model, metadata = load_model(save_dir=DEFAULT_MODEL_DIR, device=torch.device("cpu"), symbol=symbol, years=years)
+
+        model, metadata = load_model(
+            save_dir=DEFAULT_MODEL_DIR,
+            device=torch.device("cpu"),
+            symbol=symbol,
+            years=years,
+        )
         X, feature_names, y_info, y_dir, y_mag = build_features_from_df(df)
         if len(X) == 0:
             return jsonify({"error": "数据不足 65 个交易日，无法构造输入"}), 400
         direction, magnitude_val, prob_up, magnitude_5 = _lstm_predict_single(
-            model, X,
+            model,
+            X,
             y_mag_mean=metadata.get("y_mag_mean"),
             y_mag_std=metadata.get("y_mag_std"),
         )
         if record_prediction is not None and DEFAULT_MODEL_DIR is not None:
             from datetime import date
+
             predict_date = date.today().strftime("%Y-%m-%d")
-            version_id = get_current_version_id(DEFAULT_MODEL_DIR, symbol=symbol, years=years) if get_current_version_id else None
+            version_id = (
+                get_current_version_id(DEFAULT_MODEL_DIR, symbol=symbol, years=years)
+                if get_current_version_id
+                else None
+            )
             record_prediction(
                 symbol=symbol,
                 predict_date=predict_date,
@@ -1160,7 +2077,12 @@ def lstm_predict():
         }
         if health is not None:
             out["model_health"] = health
-        if trigger_train_async and run_training_trigger_async is not None and check_triggers is not None and run_triggered_training is not None:
+        if (
+            trigger_train_async
+            and run_training_trigger_async is not None
+            and check_triggers is not None
+            and run_triggered_training is not None
+        ):
             run_training_trigger_async(
                 symbol=symbol,
                 check_triggers_fn=check_triggers,
@@ -1194,12 +2116,14 @@ def lstm_predict_all():
         return jsonify({"error": f"获取股票列表失败: {e}"}), 500
     symbols = [x["filename"] for x in files if (x.get("filename") or "").strip()]
     if not symbols:
-        return jsonify({
-            "error": "当前无股票数据，请先在股票列表或数据管理中添加股票",
-            "results": [],
-            "success_count": 0,
-            "fail_count": 0,
-        }), 400
+        return jsonify(
+            {
+                "error": "当前无股票数据，请先在股票列表或数据管理中添加股票",
+                "results": [],
+                "success_count": 0,
+                "fail_count": 0,
+            }
+        ), 400
 
     body = request.get_json(silent=True) or {}
     use_fallback = body.get("use_fallback", False)
@@ -1228,7 +2152,9 @@ def lstm_predict_all():
             continue
         df = fetch_hist(symbol, start_date, end_date)
         if df is None or df.empty:
-            results.append({"symbol": symbol, "ok": False, "error": "暂无数据或拉取失败"})
+            results.append(
+                {"symbol": symbol, "ok": False, "error": "暂无数据或拉取失败"}
+            )
             continue
         last_pred = None
         last_error = None
@@ -1239,7 +2165,12 @@ def lstm_predict_all():
                     out = predict_with_fallback(
                         symbol=symbol,
                         df=df,
-                        load_model_fn=lambda **kw: load_model(device=__import__("torch").device("cpu"), symbol=_sym, years=_y, **kw),
+                        load_model_fn=lambda **kw: load_model(
+                            device=__import__("torch").device("cpu"),
+                            symbol=_sym,
+                            years=_y,
+                            **kw,
+                        ),
                         build_features_fn=build_features_from_df,
                         predict_lstm_fn=lambda model, X: _lstm_predict_single(model, X),
                         save_dir=DEFAULT_MODEL_DIR,
@@ -1248,7 +2179,8 @@ def lstm_predict_all():
                         "symbol": symbol,
                         "ok": True,
                         "direction": out["direction"],
-                        "direction_label": out.get("direction_label") or ("涨" if out["direction"] == 1 else "跌"),
+                        "direction_label": out.get("direction_label")
+                        or ("涨" if out["direction"] == 1 else "跌"),
                         "magnitude": round(out.get("magnitude", 0), 6),
                         "prob_up": round(out.get("prob_up", 0.5), 4),
                         "prob_down": round(out.get("prob_down", 0.5), 4),
@@ -1256,8 +2188,14 @@ def lstm_predict_all():
                     }
                 else:
                     import torch
+
                     try:
-                        model, meta = load_model(save_dir=DEFAULT_MODEL_DIR, device=torch.device("cpu"), symbol=symbol, years=predict_all_years)
+                        model, meta = load_model(
+                            save_dir=DEFAULT_MODEL_DIR,
+                            device=torch.device("cpu"),
+                            symbol=symbol,
+                            years=predict_all_years,
+                        )
                     except FileNotFoundError:
                         last_error = "未找到该股票对应年份的模型，请先训练"
                         continue
@@ -1265,10 +2203,13 @@ def lstm_predict_all():
                     if len(X) == 0:
                         last_error = "数据不足 65 个交易日"
                         continue
-                    direction, magnitude_val, prob_up, magnitude_5 = _lstm_predict_single(
-                        model, X,
-                        y_mag_mean=meta.get("y_mag_mean"),
-                        y_mag_std=meta.get("y_mag_std"),
+                    direction, magnitude_val, prob_up, magnitude_5 = (
+                        _lstm_predict_single(
+                            model,
+                            X,
+                            y_mag_mean=meta.get("y_mag_mean"),
+                            y_mag_std=meta.get("y_mag_std"),
+                        )
                     )
                     pred = {
                         "symbol": symbol,
@@ -1285,7 +2226,13 @@ def lstm_predict_all():
                     pred["model_health"] = health
                 if record_prediction is not None and DEFAULT_MODEL_DIR is not None:
                     predict_date = date.today().strftime("%Y-%m-%d")
-                    version_id = get_current_version_id(DEFAULT_MODEL_DIR, symbol=symbol, years=predict_all_years) if get_current_version_id else None
+                    version_id = (
+                        get_current_version_id(
+                            DEFAULT_MODEL_DIR, symbol=symbol, years=predict_all_years
+                        )
+                        if get_current_version_id
+                        else None
+                    )
                     record_prediction(
                         symbol=symbol,
                         predict_date=predict_date,
@@ -1302,7 +2249,13 @@ def lstm_predict_all():
                 last_error = None
             except Exception as e:
                 last_error = str(e)
-        if trigger_train_async and last_pred is not None and run_training_trigger_async is not None and check_triggers is not None and run_triggered_training is not None:
+        if (
+            trigger_train_async
+            and last_pred is not None
+            and run_training_trigger_async is not None
+            and check_triggers is not None
+            and run_triggered_training is not None
+        ):
             try:
                 run_training_trigger_async(
                     symbol=symbol,
@@ -1319,14 +2272,18 @@ def lstm_predict_all():
         if last_pred is not None:
             results.append(last_pred)
         else:
-            results.append({"symbol": symbol, "ok": False, "error": last_error or "预测失败"})
+            results.append(
+                {"symbol": symbol, "ok": False, "error": last_error or "预测失败"}
+            )
 
     success_count = sum(1 for r in results if r.get("ok"))
-    return jsonify({
-        "results": results,
-        "success_count": success_count,
-        "fail_count": len(results) - success_count,
-    })
+    return jsonify(
+        {
+            "results": results,
+            "success_count": success_count,
+            "fail_count": len(results) - success_count,
+        }
+    )
 
 
 @api_bp.route("/lstm/last-prediction", methods=["GET"])
@@ -1336,7 +2293,9 @@ def lstm_last_prediction():
     Query: symbol=600519
     """
     if get_last_prediction_for_symbol is None:
-        return jsonify({"error": "预测记录不可用（请确保 MySQL 与 data.lstm_repo 可用）"}), 503
+        return jsonify(
+            {"error": "预测记录不可用（请确保 MySQL 与 data.lstm_repo 可用）"}
+        ), 503
     symbol = request.args.get("symbol", "").strip()
     if not symbol or ".." in symbol or "/" in symbol or "\\" in symbol:
         return jsonify({"error": "缺少或非法 symbol 参数"}), 400
@@ -1353,7 +2312,9 @@ def lstm_last_predictions():
     返回: { "predictions": [ { symbol, predict_date, direction, magnitude, prob_up, prob_down, direction_label, source }, ... ] }
     """
     if get_all_last_predictions is None:
-        return jsonify({"error": "预测记录不可用（请确保 MySQL 与 data.lstm_repo 可用）"}), 503
+        return jsonify(
+            {"error": "预测记录不可用（请确保 MySQL 与 data.lstm_repo 可用）"}
+        ), 503
     try:
         predictions = get_all_last_predictions()
         return jsonify({"predictions": predictions})
@@ -1386,7 +2347,9 @@ def lstm_plot_data():
         years=years,
     )
     if not data:
-        return jsonify({"error": f"暂无该股票（{symbol}）{years} 年模型的曲线数据；请先训练"}), 404
+        return jsonify(
+            {"error": f"暂无该股票（{symbol}）{years} 年模型的曲线数据；请先训练"}
+        ), 404
     # 附加「预测走势」：该 symbol+years 最近一次预测 + 未来 5 个交易日日期，供前端在曲线图上延伸绘制
     if get_last_prediction_for_symbol_years is not None:
         try:
@@ -1423,11 +2386,13 @@ def _training_span_days(data_start: str | None, data_end: str | None) -> int | N
     """根据 data_start/data_end 计算跨度天数，用于区分 1 年/2 年训练。支持 YYYY-MM-DD 或 YYYYMMDD。"""
     if not data_start or not data_end:
         return None
+
     def to_ymd(x: str) -> str | None:
         x = (x or "").strip().replace("-", "")[:8]
         if len(x) == 8 and x.isdigit():
             return f"{x[:4]}-{x[4:6]}-{x[6:8]}"
         return None
+
     try:
         s = to_ymd(data_start) or (data_start or "")[:10].strip()
         e = to_ymd(data_end) or (data_end or "")[:10].strip()
@@ -1448,7 +2413,9 @@ def lstm_stocks_training_status():
     前端用 trained_years 判断是否 1/2/3 年都训练完毕，避免部分年份失败仍显示“已训练”。
     """
     if list_training_runs is None:
-        return jsonify({"error": "LSTM 训练流水不可用（请确保 MySQL 与 data.lstm_repo 可用）"}), 503
+        return jsonify(
+            {"error": "LSTM 训练流水不可用（请确保 MySQL 与 data.lstm_repo 可用）"}
+        ), 503
     try:
         files = _list_stocks()
         runs = list_training_runs(symbol=None, limit=3000)
@@ -1471,8 +2438,16 @@ def lstm_stocks_training_status():
         if sym not in by_symbol or created > by_symbol[sym]:
             by_symbol[sym] = created
 
-    symbols_from_files = [(f.get("filename") or f.get("symbol") or "").strip() for f in files if (f.get("filename") or f.get("symbol") or "").strip()]
-    trained_years_map = get_trained_years_per_symbol(symbols_from_files) if get_trained_years_per_symbol else {}
+    symbols_from_files = [
+        (f.get("filename") or f.get("symbol") or "").strip()
+        for f in files
+        if (f.get("filename") or f.get("symbol") or "").strip()
+    ]
+    trained_years_map = (
+        get_trained_years_per_symbol(symbols_from_files)
+        if get_trained_years_per_symbol
+        else {}
+    )
 
     stocks = []
     for f in files:
@@ -1480,12 +2455,14 @@ def lstm_stocks_training_status():
         if not symbol:
             continue
         display_name = (f.get("displayName") or symbol) or ""
-        stocks.append({
-            "symbol": symbol,
-            "displayName": display_name,
-            "last_train": by_symbol.get(symbol),
-            "trained_years": trained_years_map.get(symbol, []),
-        })
+        stocks.append(
+            {
+                "symbol": symbol,
+                "displayName": display_name,
+                "last_train": by_symbol.get(symbol),
+                "trained_years": trained_years_map.get(symbol, []),
+            }
+        )
     return jsonify({"stocks": stocks})
 
 
@@ -1512,7 +2489,9 @@ def lstm_clear_training():
     else:
         symbols = []
     if not symbols:
-        return jsonify({"error": "请指定要清理的股票代码", "cleared": 0, "symbols": []}), 400
+        return jsonify(
+            {"error": "请指定要清理的股票代码", "cleared": 0, "symbols": []}
+        ), 400
     symbols = list(dict.fromkeys(symbols))
     version_ids_to_delete = set()
     for sym in symbols:
@@ -1537,12 +2516,14 @@ def lstm_clear_training():
             delete_current_version_for_symbols(symbols)
         except Exception:
             pass
-        return jsonify({
-            "cleared": len(symbols),
-            "symbols": symbols,
-            "deleted_runs": deleted_runs,
-            "message": f"已清理 {len(symbols)} 只股票的训练数据，可重新训练",
-        })
+        return jsonify(
+            {
+                "cleared": len(symbols),
+                "symbols": symbols,
+                "deleted_runs": deleted_runs,
+                "message": f"已清理 {len(symbols)} 只股票的训练数据，可重新训练",
+            }
+        )
     except Exception as e:
         return jsonify({"error": str(e), "cleared": 0, "symbols": symbols}), 500
 
@@ -1554,7 +2535,9 @@ def lstm_training_runs():
     Query: symbol=600519（可选）, limit=50, dedupe=1（按股票去重，每只只返回最新一条）
     """
     if list_training_runs is None:
-        return jsonify({"error": "LSTM 训练流水不可用（请确保 MySQL 与 data.lstm_repo 可用）"}), 503
+        return jsonify(
+            {"error": "LSTM 训练流水不可用（请确保 MySQL 与 data.lstm_repo 可用）"}
+        ), 503
     symbol = request.args.get("symbol", "").strip() or None
     limit = min(int(request.args.get("limit", 50) or 50), 200)
     dedupe = request.args.get("dedupe", "").strip().lower() in ("1", "true", "yes")
@@ -1589,7 +2572,11 @@ def lstm_versions():
         return jsonify({"error": "LSTM 版本管理不可用"}), 503
     try:
         versions = list_versions(DEFAULT_MODEL_DIR)
-        current = get_current_version_id(DEFAULT_MODEL_DIR) if get_current_version_id else None
+        current = (
+            get_current_version_id(DEFAULT_MODEL_DIR)
+            if get_current_version_id
+            else None
+        )
         return jsonify({"current_version_id": current, "versions": versions})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -1622,9 +2609,18 @@ def lstm_rollback():
     if not version_id:
         return jsonify({"error": "缺少 version_id"}), 400
     try:
-        sym_years = get_model_version_symbol_years(version_id) if get_model_version_symbol_years else None
+        sym_years = (
+            get_model_version_symbol_years(version_id)
+            if get_model_version_symbol_years
+            else None
+        )
         if sym_years:
-            set_current_version(version_id, save_dir=DEFAULT_MODEL_DIR, symbol=sym_years[0], years=sym_years[1])
+            set_current_version(
+                version_id,
+                save_dir=DEFAULT_MODEL_DIR,
+                symbol=sym_years[0],
+                years=sym_years[1],
+            )
         else:
             set_current_version(version_id, save_dir=DEFAULT_MODEL_DIR)
         return jsonify({"ok": True, "current_version_id": version_id})
@@ -1643,7 +2639,11 @@ def lstm_check_triggers():
     - monthly: 当月最后交易日触发，完整重新训练
     - performance_decay: 最近20日平均预测误差 > 历史平均×1.5 时触发重新训练
     """
-    if check_triggers is None or run_triggered_training is None or run_lstm_pipeline is None:
+    if (
+        check_triggers is None
+        or run_triggered_training is None
+        or run_lstm_pipeline is None
+    ):
         return jsonify({"error": "LSTM 触发模块不可用"}), 503
     body = request.get_json(silent=True) or {}
     symbol = (body.get("symbol") or "").strip()
@@ -1651,12 +2651,15 @@ def lstm_check_triggers():
     if not symbol:
         start_date, end_date, _ = get_date_range_from_config()
         from data import stock_repo
+
         stocks = stock_repo.list_stocks_from_db()
         symbol = (stocks[0].get("symbol") or "").strip() if stocks else ""
     if not symbol or ".." in symbol or "/" in symbol:
         return jsonify({"error": "缺少或非法 symbol"}), 400
     try:
-        triggers = check_triggers(save_dir=str(DEFAULT_MODEL_DIR) if DEFAULT_MODEL_DIR else None)
+        triggers = check_triggers(
+            save_dir=str(DEFAULT_MODEL_DIR) if DEFAULT_MODEL_DIR else None
+        )
         result = {"triggers": triggers}
         if not do_run:
             return jsonify(result)
@@ -1683,7 +2686,8 @@ def lstm_check_triggers():
             if "error" not in training_result and insert_training_run is not None:
                 try:
                     insert_training_run(
-                        version_id=training_result.get("version_id") or training_result.get("metadata", {}).get("version_id"),
+                        version_id=training_result.get("version_id")
+                        or training_result.get("metadata", {}).get("version_id"),
                         symbol=symbol,
                         training_type="incremental" if run_type == "weekly" else "full",
                         trigger_type=run_type,
@@ -1691,9 +2695,15 @@ def lstm_check_triggers():
                         data_end=training_result.get("data_end"),
                         params=training_result.get("metadata", {}),
                         metrics=training_result.get("metrics"),
-                        validation_deployed=training_result.get("validation", {}).get("deployed", True),
-                        validation_reason=training_result.get("validation", {}).get("reason"),
-                        holdout_metrics=training_result.get("validation", {}).get("new_holdout_metrics"),
+                        validation_deployed=training_result.get("validation", {}).get(
+                            "deployed", True
+                        ),
+                        validation_reason=training_result.get("validation", {}).get(
+                            "reason"
+                        ),
+                        holdout_metrics=training_result.get("validation", {}).get(
+                            "new_holdout_metrics"
+                        ),
                     )
                 except Exception:
                     pass
@@ -1717,6 +2727,7 @@ def lstm_update_accuracy():
     if not symbol or ".." in symbol or "/" in symbol:
         return jsonify({"error": "缺少或非法 symbol"}), 400
     from datetime import date
+
     as_of = body.get("as_of_date") or date.today().strftime("%Y-%m-%d")
     try:
         n = update_accuracy_for_symbol(
@@ -1780,10 +2791,16 @@ def lstm_alerts():
     body = request.get_json(silent=True) or {}
     do_fire = body.get("fire", False)
     try:
-        config = get_alert_config_from_env_or_config(load_config) if get_alert_config_from_env_or_config else {}
+        config = (
+            get_alert_config_from_env_or_config(load_config)
+            if get_alert_config_from_env_or_config
+            else {}
+        )
         alerts = check_alerts(
             save_dir=DEFAULT_MODEL_DIR,
-            performance_decay_multiplier=config.get("performance_decay_multiplier", 1.5),
+            performance_decay_multiplier=config.get(
+                "performance_decay_multiplier", 1.5
+            ),
             max_days_without_training=config.get("max_days_without_training", 30),
             min_direction_accuracy=config.get("min_direction_accuracy"),
         )
@@ -1799,4 +2816,3 @@ def lstm_alerts():
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-

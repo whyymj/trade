@@ -1,0 +1,23 @@
+# FundProphet 本地 MySQL 配置
+# 使用阿里云镜像加速
+
+services:
+  mysql:
+    image: registry.cn-hangzhou.aliyuncs.com/library/mysql:8.0
+    container_name: fund-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: Belldandy_13579
+      MYSQL_DATABASE: trade_cache
+      MYSQL_CHARSET: utf8mb4
+    ports:
+      - "3306:3306"
+    volumes:
+      - fund-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  fund-mysql-data:

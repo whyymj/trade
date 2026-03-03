@@ -5,6 +5,7 @@
 - stock_meta: 股票元信息 + first_trade_date / last_trade_date（已有数据时间范围），更新时只拉取范围内没有的
 - stock_daily: 日线行情，按 (symbol, trade_date) 唯一，INSERT ON DUPLICATE KEY UPDATE 即可日更
 """
+
 from data.mysql import execute
 
 # akshare 列名（中文）-> 表字段名 映射；顺序与表 stock_daily 一致（open, high, low, close...）
@@ -206,7 +207,9 @@ def create_lstm_prediction_log_table() -> None:
 def migrate_lstm_prediction_log_years() -> None:
     """为已存在的 lstm_prediction_log 表增加 years 列并调整唯一键。"""
     try:
-        execute("ALTER TABLE lstm_prediction_log ADD COLUMN years TINYINT UNSIGNED NOT NULL DEFAULT 1 COMMENT '1/2/3 年模型'")
+        execute(
+            "ALTER TABLE lstm_prediction_log ADD COLUMN years TINYINT UNSIGNED NOT NULL DEFAULT 1 COMMENT '1/2/3 年模型'"
+        )
     except Exception:
         pass
     try:
@@ -214,11 +217,15 @@ def migrate_lstm_prediction_log_years() -> None:
     except Exception:
         pass
     try:
-        execute("ALTER TABLE lstm_prediction_log ADD UNIQUE KEY uk_symbol_predict_years (symbol, predict_date, years)")
+        execute(
+            "ALTER TABLE lstm_prediction_log ADD UNIQUE KEY uk_symbol_predict_years (symbol, predict_date, years)"
+        )
     except Exception:
         pass
     try:
-        execute("ALTER TABLE lstm_prediction_log ADD KEY idx_symbol_years (symbol, years)")
+        execute(
+            "ALTER TABLE lstm_prediction_log ADD KEY idx_symbol_years (symbol, years)"
+        )
     except Exception:
         pass
 
@@ -226,7 +233,9 @@ def migrate_lstm_prediction_log_years() -> None:
 def migrate_lstm_prediction_log_magnitude_5() -> None:
     """为 lstm_prediction_log 增加 magnitude_5 列（JSON 数组，5 日逐日涨跌幅）。"""
     try:
-        execute("ALTER TABLE lstm_prediction_log ADD COLUMN magnitude_5 JSON DEFAULT NULL COMMENT '5日逐日涨跌幅'")
+        execute(
+            "ALTER TABLE lstm_prediction_log ADD COLUMN magnitude_5 JSON DEFAULT NULL COMMENT '5日逐日涨跌幅'"
+        )
     except Exception:
         pass
 
@@ -292,15 +301,21 @@ def create_lstm_model_version_table() -> None:
 def migrate_lstm_model_version_symbol_years() -> None:
     """为已存在的 lstm_model_version 表增加 symbol、years 列（按股票+年份存储迁移）。"""
     try:
-        execute("ALTER TABLE lstm_model_version ADD COLUMN symbol VARCHAR(32) NOT NULL DEFAULT ''")
+        execute(
+            "ALTER TABLE lstm_model_version ADD COLUMN symbol VARCHAR(32) NOT NULL DEFAULT ''"
+        )
     except Exception:
         pass
     try:
-        execute("ALTER TABLE lstm_model_version ADD COLUMN years TINYINT UNSIGNED NOT NULL DEFAULT 1 COMMENT '1/2/3 年'")
+        execute(
+            "ALTER TABLE lstm_model_version ADD COLUMN years TINYINT UNSIGNED NOT NULL DEFAULT 1 COMMENT '1/2/3 年'"
+        )
     except Exception:
         pass
     try:
-        execute("ALTER TABLE lstm_model_version ADD KEY idx_symbol_years (symbol, years)")
+        execute(
+            "ALTER TABLE lstm_model_version ADD KEY idx_symbol_years (symbol, years)"
+        )
     except Exception:
         pass
 
@@ -328,11 +343,115 @@ def create_all_tables() -> None:
     migrate_backfill_first_trade_date()
     create_stock_daily_table()
     create_lstm_tables()
+    create_fund_tables()
+
+
+# ---------- 基金相关表 ----------
+
+
+def create_fund_meta_table() -> None:
+    """基金基本信息表"""
+    sql = """
+    CREATE TABLE IF NOT EXISTS fund_meta (
+        fund_code VARCHAR(10) PRIMARY KEY,
+        fund_name VARCHAR(128) DEFAULT NULL,
+        fund_type VARCHAR(32) DEFAULT NULL,
+        manager VARCHAR(128) DEFAULT NULL,
+        establishment_date DATE DEFAULT NULL,
+        fund_scale DECIMAL(20,2) DEFAULT NULL,
+        watchlist TINYINT(1) DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        KEY idx_watchlist (watchlist),
+        KEY idx_fund_type (fund_type)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """
+    execute(sql)
+
+
+def create_fund_nav_table() -> None:
+    """基金净值表"""
+    sql = """
+    CREATE TABLE IF NOT EXISTS fund_nav (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        fund_code VARCHAR(10) NOT NULL,
+        nav_date DATE NOT NULL,
+        unit_nav DECIMAL(10,4) DEFAULT NULL,
+        accum_nav DECIMAL(10,4) DEFAULT NULL,
+        daily_return DECIMAL(10,4) DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_fund_date (fund_code, nav_date),
+        KEY idx_code_date (fund_code, nav_date),
+        KEY idx_nav_date (nav_date)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """
+    execute(sql)
+
+
+def create_index_data_table() -> None:
+    """指数数据表"""
+    sql = """
+    CREATE TABLE IF NOT EXISTS index_data (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        index_code VARCHAR(20) NOT NULL,
+        trade_date DATE NOT NULL,
+        close_price DECIMAL(10,2) DEFAULT NULL,
+        daily_return DECIMAL(10,4) DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_index_date (index_code, trade_date),
+        KEY idx_code_date (index_code, trade_date),
+        KEY idx_trade_date (trade_date)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """
+    execute(sql)
+
+
+def create_fund_prediction_table() -> None:
+    """预测记录表"""
+    sql = """
+    CREATE TABLE IF NOT EXISTS fund_prediction (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        fund_code VARCHAR(10) NOT NULL,
+        predict_date DATE NOT NULL,
+        direction TINYINT NOT NULL,
+        magnitude DECIMAL(12,6) DEFAULT NULL,
+        prob_up DECIMAL(8,4) DEFAULT NULL,
+        magnitude_5 JSON DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_fund_predict (fund_code, predict_date),
+        KEY idx_code_date (fund_code, predict_date),
+        KEY idx_predict_date (predict_date)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """
+    execute(sql)
+
+
+def create_fund_model_table() -> None:
+    """模型存储表"""
+    sql = """
+    CREATE TABLE IF NOT EXISTS fund_model (
+        fund_code VARCHAR(10) PRIMARY KEY,
+        model_data LONGBLOB DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """
+    execute(sql)
+
+
+def create_fund_tables() -> None:
+    """创建基金相关全部表（幂等）"""
+    create_fund_meta_table()
+    create_fund_nav_table()
+    create_index_data_table()
+    create_fund_prediction_table()
+    create_fund_model_table()
 
 
 if __name__ == "__main__":
     """命令行执行：创建表并执行迁移。用法：python -m data.schema"""
     from data.mysql import test_connection
+
     if not test_connection():
         print("数据库连接失败，请检查 config.yaml 中 mysql 配置。")
         exit(1)
