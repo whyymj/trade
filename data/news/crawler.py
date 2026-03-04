@@ -6,6 +6,7 @@
 import time
 import re
 import json
+import random
 from datetime import datetime, date
 from typing import List, Optional
 from dataclasses import asdict
@@ -19,13 +20,68 @@ class NewsCrawler:
 
     MIN_INTERVAL_HOURS = 4
     MAX_DAILY_FETCHES = 4
+    REQUEST_DELAY_SECONDS = 2
+    MAX_RETRIES = 3
 
     _last_fetch_time: Optional[datetime] = None
     _daily_count: int = 0
     _last_date: Optional[str] = None
 
+    USER_AGENTS = [
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+    ]
+
     def __init__(self):
         self._reset_daily_count_if_needed()
+
+    def _get_random_user_agent(self) -> str:
+        """获取随机User-Agent"""
+        return random.choice(self.USER_AGENTS)
+
+    def _add_delay(self):
+        """添加请求间隔"""
+        delay = self.REQUEST_DELAY_SECONDS + random.uniform(0, 1)
+        time.sleep(delay)
+
+    def _make_request(
+        self, url: str, headers: dict = None, **kwargs
+    ) -> Optional[requests.Response]:
+        """带重试的请求"""
+        if headers is None:
+            headers = {}
+
+        headers["User-Agent"] = self._get_random_user_agent()
+
+        for attempt in range(self.MAX_RETRIES):
+            try:
+                self._add_delay()
+                resp = requests.get(url, headers=headers, timeout=15, **kwargs)
+                if resp.status_code == 200:
+                    return resp
+                elif resp.status_code == 403 or resp.status_code == 429:
+                    print(
+                        f"[NewsCrawler] 请求被拒绝 (status={resp.status_code}), 等待更长时间..."
+                    )
+                    time.sleep(10)
+                else:
+                    print(f"[NewsCrawler] 请求失败 (status={resp.status_code})")
+            except requests.exceptions.Timeout:
+                print(
+                    f"[NewsCrawler] 请求超时 (attempt {attempt + 1}/{self.MAX_RETRIES})"
+                )
+            except Exception as e:
+                print(f"[NewsCrawler] 请求异常: {e}")
+
+            if attempt < self.MAX_RETRIES - 1:
+                wait_time = (attempt + 1) * 5
+                print(f"[NewsCrawler] 等待 {wait_time} 秒后重试...")
+                time.sleep(wait_time)
+
+        return None
 
     def _reset_daily_count_if_needed(self):
         today = date.today().isoformat()
@@ -72,6 +128,9 @@ class NewsCrawler:
                 else:
                     continue
                 all_news.extend(news)
+
+                time.sleep(random.uniform(1, 3))
+
             except Exception as e:
                 print(f"[NewsCrawler] {source} fetch error: {e}")
 
@@ -128,12 +187,11 @@ class NewsCrawler:
         try:
             url = "https://www.cls.cn/nodeapi/update"
             headers = {
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
                 "Referer": "https://www.cls.cn/",
             }
 
-            resp = requests.get(url, headers=headers, timeout=10)
-            if resp.status_code != 200:
+            resp = self._make_request(url, headers=headers)
+            if not resp or resp.status_code != 200:
                 return []
 
             data = resp.json()
@@ -171,12 +229,9 @@ class NewsCrawler:
         try:
             url = "https://api.goldboot.cn/news/list"
             params = {"type": "flash", "limit": 20}
-            headers = {
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-            }
 
-            resp = requests.get(url, params=params, headers=headers, timeout=10)
-            if resp.status_code != 200:
+            resp = self._make_request(url, params=params)
+            if not resp or resp.status_code != 200:
                 return []
 
             data = resp.json()

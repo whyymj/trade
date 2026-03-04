@@ -11,8 +11,11 @@
       />
       <button class="btn btn-primary" @click="handleSearch">搜索</button>
       <button class="btn btn-success" @click="showAddModal = true">+ 添加基金</button>
-      <button class="btn" style="background: #409eff; color: white;" @click="goToPredict">🎯 预测中心</button>
+      <button class="btn" style="background: #409eff; color: white;" @click="goToPredict">🎯 预测</button>
       <button class="btn" style="background: #e6a23c; color: white;" @click="goToNews">📰 新闻</button>
+      <button class="btn" style="background: #9c27b0; color: white;" @click="goToMarket">📊 市场</button>
+      <button class="btn" style="background: #00bcd4; color: white;" @click="goToFundIndustry">🏭 行业</button>
+      <button class="btn" style="background: #ff9800; color: white;" @click="goToFundNews">🔗 关联</button>
     </div>
     
     <div class="filter-bar">
@@ -217,6 +220,18 @@ function goToPredict() {
 
 function goToNews() {
   router.push('/news')
+}
+
+function goToMarket() {
+  router.push('/market')
+}
+
+function goToFundIndustry() {
+  router.push('/fund-industry')
+}
+
+function goToFundNews() {
+  router.push('/fund-news')
 }
 
 async function handleAddBatch() {

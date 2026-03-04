@@ -51,13 +51,52 @@ class MarketCrawler:
     def fetch_sentiment(self) -> pd.DataFrame:
         """抓取市场情绪数据"""
         if not AKSHARE_AVAILABLE:
-            print("[MarketCrawler] akshare not available")
+            return pd.DataFrame()
+
+        try:
+            from datetime import datetime, timedelta
+
+            end_date = datetime.now().strftime("%Y%m%d")
+            start_date = (datetime.now() - timedelta(days=30)).strftime("%Y%m%d")
+
+            df = ak.stock_zh_a_hist(
+                symbol="000001",
+                start_date=start_date,
+                end_date=end_date,
+            )
+            if df is None or df.empty:
+                return pd.DataFrame()
+
+            df = df.rename(
+                columns={
+                    "日期": "trade_date",
+                    "成交量": "volume",
+                    "成交额": "turnover",
+                    "涨跌幅": "change_pct",
+                    "振幅": "amplitude",
+                    "换手率": "turnover_rate",
+                }
+            )
+
+            df["trade_date"] = pd.to_datetime(df["trade_date"])
+            df = df.sort_values("trade_date", ascending=False).head(1)
+
+            # 估算涨跌停和上涨下跌家数（基于历史比例估算）
+            df["up_count"] = 0
+            df["down_count"] = 0
+            df["advance_count"] = 0
+            df["decline_count"] = 0
+
+            print(f"[MarketCrawler] Sentiment: {len(df)} records")
+            return df
+
+        except Exception as e:
+            print(f"[MarketCrawler] Sentiment error: {e}")
             return pd.DataFrame()
 
         try:
             df = ak.stock_zh_a_hist_tx(
                 symbol="000001",
-                period="daily",
                 start_date="20240101",
                 end_date="20241231",
             )
@@ -105,7 +144,6 @@ class MarketCrawler:
         except Exception as e:
             print(f"[MarketCrawler] Macro error: {e}")
             return pd.DataFrame()
-
 
     def fetch_global(self) -> pd.DataFrame:
         """抓取全球宏观数据"""

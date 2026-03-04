@@ -126,6 +126,26 @@ def create_app(static_folder=None):
     app.register_blueprint(news_bp)
     app.register_blueprint(market_bp)
 
+    # 注册基金行业API蓝图
+    from server.routes.fund_industry import fund_industry_bp
+
+    app.register_blueprint(fund_industry_bp)
+
+    # 注册新闻行业分类API蓝图
+    from server.routes.news_classification import news_classification_bp
+
+    app.register_blueprint(news_classification_bp)
+
+    # 注册基金-新闻关联API蓝图
+    from server.routes.fund_news_association import fund_news_association_bp
+
+    app.register_blueprint(fund_news_association_bp)
+
+    # 注册投资建议API蓝图
+    from server.routes.investment_advice import investment_advice_bp
+
+    app.register_blueprint(investment_advice_bp)
+
     @app.before_request
     def _request_start():
         g._request_start = log_request_start()

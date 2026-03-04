@@ -337,6 +337,100 @@ def test_api_and_delete():
     print("✅ 添加后再删除测试通过")
 
 
+def test_market_sentiment_api():
+    """测试市场情绪API"""
+    from server.app import create_app
+
+    app = create_app()
+    client = app.test_client()
+
+    # 获取最新市场情绪
+    resp = client.get("/api/market/sentiment/latest")
+    assert resp.status_code == 200
+
+    data = resp.get_json()
+    assert data["code"] == 0
+    assert data["data"] is not None
+
+    sentiment = data["data"]
+    assert "trade_date" in sentiment
+    assert "volume" in sentiment
+    assert "up_count" in sentiment
+    assert "down_count" in sentiment
+    assert "turnover_rate" in sentiment
+
+    # 验证数据完整性（非空）
+    assert sentiment["volume"] is not None, "成交额不应为空"
+    assert sentiment["turnover_rate"] is not None, "换手率不应为空"
+
+    print(f"✅ 市场情绪API测试通过: {sentiment.get('trade_date')}")
+
+
+def test_market_money_flow_api():
+    """测试资金流向API"""
+    from server.app import create_app
+
+    app = create_app()
+    client = app.test_client()
+
+    # 获取最新资金流向
+    resp = client.get("/api/market/money-flow/latest")
+    assert resp.status_code == 200
+
+    data = resp.get_json()
+    assert data["code"] == 0
+    assert data["data"] is not None
+
+    money_flow = data["data"]
+    assert "trade_date" in money_flow
+    assert "north_money" in money_flow
+    assert "main_money" in money_flow
+    assert "margin_balance" in money_flow
+
+    # 验证数据完整性（非空）
+    assert money_flow["main_money"] is not None, "主力资金不应为空"
+    assert money_flow["north_money"] is not None, "北向资金不应为空"
+    assert money_flow["margin_balance"] is not None, "融资余额不应为空"
+
+    print(f"✅ 资金流向API测试通过: {money_flow.get('trade_date')}")
+
+
+def test_market_sentiment_with_days():
+    """测试市场情绪API带days参数"""
+    from server.app import create_app
+
+    app = create_app()
+    client = app.test_client()
+
+    # 获取多天数据
+    resp = client.get("/api/market/sentiment?days=7")
+    assert resp.status_code == 200
+
+    data = resp.get_json()
+    assert data["code"] == 0
+    assert isinstance(data["data"], list)
+
+    print(f"✅ 市场情绪API(days参数)测试通过: {len(data['data'])} 条")
+
+
+def test_market_money_flow_with_days():
+    """测试资金流向API带days参数"""
+    from server.app import create_app
+
+    app = create_app()
+    client = app.test_client()
+
+    # 获取多天数据
+    resp = client.get("/api/market/money-flow?days=7")
+    assert resp.status_code == 200
+
+    data = resp.get_json()
+    assert data["code"] == 0
+    assert isinstance(data["data"], list)
+
+    print(f"✅ 资金流向API(days参数)测试通过: {len(data['data'])} 条")
+
+
 def test_training_status_functions():
     """测试训练状态检查函数"""
     from analysis.fund_lstm import (
@@ -680,6 +774,10 @@ def run_all_tests():
         ("API基金详情", test_api_fund_detail),
         ("API添加基金", test_api_fund_add),
         ("API添加后删除", test_api_and_delete),
+        ("市场情绪API", test_market_sentiment_api),
+        ("资金流向API", test_market_money_flow_api),
+        ("市场情绪(days)", test_market_sentiment_with_days),
+        ("资金流向(days)", test_market_money_flow_with_days),
         ("训练状态函数", test_training_status_functions),
         ("训练状态追踪", test_train_model_status_tracking),
         ("LSTM训练API", test_lstm_train_api),

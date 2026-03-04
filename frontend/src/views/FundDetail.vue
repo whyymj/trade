@@ -56,6 +56,13 @@
         >
           LLM分析
         </button>
+        <button 
+          class="nav-tab" 
+          :class="{ active: activeTab === 'industry-news' }"
+          @click="activeTab = 'industry-news'"
+        >
+          📰 行业新闻
+        </button>
       </div>
       
       <div v-if="activeTab === 'chart'" class="card">
@@ -238,6 +245,99 @@
         <div v-else-if="analysisResult" class="analysis-content" v-html="analysisRendered"></div>
         <div v-else class="empty">暂无分析结果</div>
       </div>
+      
+      <div v-if="activeTab === 'industry-news'" class="industry-news-tab">
+        <div class="action-bar" style="margin-bottom: 16px;">
+          <button class="btn btn-primary" @click="loadIndustryNews" :disabled="industryNewsLoading">
+            {{ industryNewsLoading ? '加载中...' : '🔄 加载行业新闻' }}
+          </button>
+          <button class="btn btn-success" @click="loadInvestmentAdvice" :disabled="adviceLoading">
+            {{ adviceLoading ? 'AI分析中...' : '🤖 获取投资建议' }}
+          </button>
+        </div>
+        
+        <div v-if="industryNewsLoading" class="loading">加载行业新闻中...</div>
+        <template v-else>
+          <div v-if="fundNewsSummary" class="card" style="margin-bottom: 16px;">
+            <div class="summary-header">
+              <div>
+                <h3>📊 行业配置</h3>
+                <div class="industry-tags">
+                  <span v-for="ind in fundNewsSummary.industries" :key="ind.industry" class="tag tag-primary">
+                    {{ ind.industry }} ({{ ind.confidence }}%)
+                  </span>
+                </div>
+              </div>
+              <div class="sentiment-badge" :class="fundNewsSummary.sentiment">
+                {{ getSentimentText(fundNewsSummary.sentiment) }}
+              </div>
+            </div>
+            
+            <div class="summary-stats">
+              <div class="stat-item">
+                <span class="stat-value">{{ fundNewsSummary.news_count }}</span>
+                <span class="stat-label">相关新闻</span>
+              </div>
+            </div>
+          </div>
+          
+          <div v-if="investmentAdvice" class="advice-card card">
+            <h3>🎯 AI 投资建议</h3>
+            
+            <div class="advice-section">
+              <div class="advice-header">
+                <span class="advice-badge short">短期</span>
+                <span class="advice-period">1周内</span>
+              </div>
+              <p class="advice-content">{{ investmentAdvice.short_term }}</p>
+            </div>
+            
+            <div class="advice-section">
+              <div class="advice-header">
+                <span class="advice-badge medium">中期</span>
+                <span class="advice-period">1-3个月</span>
+              </div>
+              <p class="advice-content">{{ investmentAdvice.medium_term }}</p>
+            </div>
+            
+            <div class="advice-section">
+              <div class="advice-header">
+                <span class="advice-badge long">长期</span>
+                <span class="advice-period">6个月以上</span>
+              </div>
+              <p class="advice-content">{{ investmentAdvice.long_term }}</p>
+            </div>
+            
+            <div class="advice-footer">
+              <span class="risk-level">风险等级: <strong>{{ investmentAdvice.risk_level }}</strong></span>
+              <span class="confidence">信心指数: {{ investmentAdvice.confidence }}%</span>
+            </div>
+            
+            <div class="key-factors" v-if="investmentAdvice.key_factors && investmentAdvice.key_factors.length">
+              <span class="factor-label">关键因素:</span>
+              <span v-for="factor in investmentAdvice.key_factors" :key="factor" class="factor-tag">
+                {{ factor }}
+              </span>
+            </div>
+          </div>
+          
+          <div v-if="fundNewsSummary && fundNewsSummary.latest_news && fundNewsSummary.latest_news.length" class="news-list">
+            <h4>📰 相关新闻</h4>
+            <div v-for="news in fundNewsSummary.latest_news" :key="news.title" class="news-item card">
+              <div class="news-header">
+                <span class="tag tag-secondary">{{ news.industry }}</span>
+                <span class="match-score">{{ (news.match_score * 100).toFixed(0) }}% 匹配</span>
+              </div>
+              <a :href="news.url" target="_blank" class="news-title">{{ news.title }}</a>
+              <div class="news-meta">{{ news.source }}</div>
+            </div>
+          </div>
+          
+          <div v-else-if="!fundNewsSummary && !industryNewsLoading" class="empty card">
+            <p>暂无行业新闻，请点击"加载行业新闻"</p>
+          </div>
+        </template>
+      </div>
     </template>
     <div v-else class="empty">基金不存在</div>
   </div>
@@ -292,6 +392,57 @@ const analysisRendered = computed(() => {
 const analysisCache = ref({}) // 缓存分析结果
 
 const fundCode = ref('')
+
+// 行业新闻相关
+const industryNewsLoading = ref(false)
+const fundNewsSummary = ref(null)
+
+// 投资建议相关
+const adviceLoading = ref(false)
+const investmentAdvice = ref(null)
+
+async function loadIndustryNews() {
+  if (!fundCode.value) return
+  
+  industryNewsLoading.value = true
+  try {
+    const res = await fetch(`/api/fund-news/summary/${fundCode.value}?days=7`)
+    const data = await res.json()
+    if (data.code === 0) {
+      fundNewsSummary.value = data.data
+    }
+  } catch (e) {
+    console.error('加载行业新闻失败:', e)
+  } finally {
+    industryNewsLoading.value = false
+  }
+}
+
+async function loadInvestmentAdvice() {
+  if (!fundCode.value) return
+  
+  adviceLoading.value = true
+  try {
+    const res = await fetch(`/api/investment-advice/${fundCode.value}?days=7`)
+    const data = await res.json()
+    if (data.code === 0) {
+      investmentAdvice.value = data.data
+    }
+  } catch (e) {
+    console.error('获取投资建议失败:', e)
+  } finally {
+    adviceLoading.value = false
+  }
+}
+
+function getSentimentText(sentiment) {
+  const map = {
+    positive: '😊 积极',
+    negative: '😟 消极',
+    neutral: '😐 中性'
+  }
+  return map[sentiment] || '😐 中性'
+}
 
 async function changeChartRange(value) {
   console.log('changeChartRange:', value, 'chartInstance:', chartInstance)
@@ -593,4 +744,197 @@ watch(activeTab, async (tab) => {
 .analysis-content th, .analysis-content td { border: 1px solid #eee; padding: 8px; text-align: left; }
 .analysis-content th { background: #f9f9f9; }
 .analysis-content blockquote { border-left: 3px solid #409eff; margin: 12px 0; padding: 8px 16px; background: #f9f9f9; }
+
+.industry-news-tab .action-bar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.industry-news-tab .summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.industry-news-tab .summary-header h3 {
+  margin: 0 0 12px 0;
+}
+
+.industry-news-tab .industry-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.industry-news-tab .sentiment-badge {
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-weight: 600;
+}
+
+.industry-news-tab .sentiment-badge.positive {
+  background: #f6ffed;
+  color: #52c41a;
+}
+
+.industry-news-tab .sentiment-badge.negative {
+  background: #fff2f0;
+  color: #ff4d4f;
+}
+
+.industry-news-tab .sentiment-badge.neutral {
+  background: #fafafa;
+  color: #666;
+}
+
+.industry-news-tab .summary-stats {
+  display: flex;
+  gap: 32px;
+}
+
+.industry-news-tab .stat-item {
+  text-align: center;
+}
+
+.industry-news-tab .stat-value {
+  display: block;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.industry-news-tab .stat-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.industry-news-tab .advice-card {
+  margin-bottom: 16px;
+}
+
+.industry-news-tab .advice-card h3 {
+  margin: 0 0 16px 0;
+  color: var(--primary);
+}
+
+.industry-news-tab .advice-section {
+  padding: 12px;
+  background: var(--bg-primary);
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.industry-news-tab .advice-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.industry-news-tab .advice-badge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.industry-news-tab .advice-badge.short {
+  background: #fff2f0;
+  color: #ff4d4f;
+}
+
+.industry-news-tab .advice-badge.medium {
+  background: #fff7e6;
+  color: #fa8c16;
+}
+
+.industry-news-tab .advice-badge.long {
+  background: #f6ffed;
+  color: #52c41a;
+}
+
+.industry-news-tab .advice-period {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.industry-news-tab .advice-content {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.industry-news-tab .advice-footer {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px;
+  background: #f0f5ff;
+  border-radius: 8px;
+  margin-top: 12px;
+}
+
+.industry-news-tab .risk-level, .industry-news-tab .confidence {
+  font-size: 14px;
+}
+
+.industry-news-tab .key-factors {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.industry-news-tab .factor-label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.industry-news-tab .factor-tag {
+  padding: 4px 8px;
+  background: #e6f7ff;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #1890ff;
+}
+
+.industry-news-tab .news-list h4 {
+  margin: 0 0 12px 0;
+}
+
+.industry-news-tab .news-item {
+  margin-bottom: 12px;
+}
+
+.industry-news-tab .news-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.industry-news-tab .match-score {
+  font-weight: 600;
+  color: var(--primary);
+  font-size: 13px;
+}
+
+.industry-news-tab .news-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  text-decoration: none;
+  margin-bottom: 6px;
+}
+
+.industry-news-tab .news-title:hover {
+  color: var(--primary);
+}
+
+.industry-news-tab .news-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+}
 </style>

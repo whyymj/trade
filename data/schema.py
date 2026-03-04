@@ -578,6 +578,59 @@ def create_news_tables() -> None:
     """创建新闻相关全部表"""
     create_news_data_table()
     create_news_analysis_table()
+    create_news_industry_classification_table()
+    create_fund_news_association_table()
+
+
+def create_fund_news_association_table() -> None:
+    """基金-新闻关联表"""
+    sql = """
+    CREATE TABLE IF NOT EXISTS fund_news_association (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        fund_code VARCHAR(16) NOT NULL,
+        fund_name VARCHAR(256),
+        news_id BIGINT DEFAULT 0,
+        news_title VARCHAR(512),
+        news_source VARCHAR(64),
+        news_url VARCHAR(1024),
+        industry VARCHAR(64),
+        industry_code VARCHAR(8),
+        match_type VARCHAR(16) DEFAULT 'industry',
+        match_score DECIMAL(5,4) DEFAULT 0.0,
+        created_at DATETIME,
+        created_at_ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_fund_news (fund_code, news_id),
+        KEY idx_fund_code (fund_code),
+        KEY idx_industry_code (industry_code),
+        KEY idx_created_at (created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """
+    execute(sql)
+
+
+def create_news_industry_classification_table() -> None:
+    """新闻行业分类表"""
+    sql = """
+    CREATE TABLE IF NOT EXISTS news_industry_classification (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        news_id BIGINT DEFAULT 0,
+        title VARCHAR(512),
+        source VARCHAR(64),
+        url VARCHAR(1024),
+        published_at DATETIME,
+        news_date DATE,
+        original_category VARCHAR(32) DEFAULT 'general',
+        industry VARCHAR(64),
+        industry_code VARCHAR(8),
+        confidence DECIMAL(5,4) DEFAULT 0.0,
+        classified_at DATETIME,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_news_id (news_id),
+        KEY idx_industry (industry_code),
+        KEY idx_classified_at (classified_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """
+    execute(sql)
 
 
 def create_market_tables() -> None:

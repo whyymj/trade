@@ -46,6 +46,41 @@
       </div>
     </div>
 
+    <!-- 资金流向 -->
+    <div class="section money-flow-card" v-if="moneyFlow">
+      <div class="sentiment-header">
+        <h2>💰 资金流向</h2>
+      </div>
+      <div class="sentiment-grid">
+        <div class="sentiment-item" :class="getMoneyClass(moneyFlow.north_money)">
+          <span class="label">北向资金</span>
+          <span class="value">{{ formatMoney(moneyFlow.north_money) }}</span>
+        </div>
+        <div class="sentiment-item" :class="getMoneyClass(moneyFlow.main_money)">
+          <span class="label">主力资金</span>
+          <span class="value">{{ formatMoney(moneyFlow.main_money) }}</span>
+        </div>
+        <div class="sentiment-item">
+          <span class="label">融资余额</span>
+          <span class="value">{{ formatMoney(moneyFlow.margin_balance) }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 全球宏观 -->
+    <div class="section global-macro-card" v-if="globalMacro && globalMacro.length > 0">
+      <div class="sentiment-header">
+        <h2>🌏 全球宏观</h2>
+      </div>
+      <div class="sentiment-grid">
+        <div class="sentiment-item" v-for="item in globalMacro" :key="item.symbol" :class="getMoneyClass(item.change_pct)">
+          <span class="label">{{ getSymbolName(item.symbol) }}</span>
+          <span class="value">{{ formatPrice(item.close_price) }}</span>
+          <span class="change" :class="item.change_pct >= 0 ? 'up' : 'down'">{{ formatChange(item.change_pct) }}</span>
+        </div>
+      </div>
+    </div>
+
     <!-- 快速入口 -->
     <div class="quick-links">
       <div class="quick-link card" @click="goToNewsList">
@@ -105,7 +140,7 @@
 <script>
 import { useRouter } from 'vue-router'
 import { getNewsList, analyzeNews as apiAnalyzeNews, getLatestAnalysis, syncNews as apiSyncNews } from '@/api/news'
-import { getMarketSentiment } from '@/api/news'
+import { getMarketSentimentLatest, getMarketMoneyFlowLatest, getMarketGlobal } from '@/api/news'
 
 export default {
   name: 'NewsHome',
@@ -117,6 +152,8 @@ export default {
     return {
       newsList: [],
       sentiment: null,
+      moneyFlow: null,
+      globalMacro: [],
       analysis: null,
       syncing: false,
       analyzing: false,
@@ -125,6 +162,8 @@ export default {
   mounted() {
     this.loadNews()
     this.loadSentiment()
+    this.loadMoneyFlow()
+    this.loadGlobalMacro()
     this.loadAnalysis()
   },
   methods: {
@@ -140,9 +179,29 @@ export default {
     },
     async loadSentiment() {
       try {
-        const res = await getMarketSentiment(1)
+        const res = await getMarketSentimentLatest()
         if (res.code === 0 && res.data) {
           this.sentiment = res.data
+        }
+      } catch (e) {
+        console.error(e)
+      }
+    },
+    async loadMoneyFlow() {
+      try {
+        const res = await getMarketMoneyFlowLatest()
+        if (res.code === 0 && res.data) {
+          this.moneyFlow = res.data
+        }
+      } catch (e) {
+        console.error(e)
+      }
+    },
+    async loadGlobalMacro() {
+      try {
+        const res = await getMarketGlobal(7)
+        if (res.code === 0 && res.data && res.data.length > 0) {
+          this.globalMacro = res.data.slice(0, 4)
         }
       } catch (e) {
         console.error(e)
@@ -194,6 +253,39 @@ export default {
         return (vol / 100000000).toFixed(2) + '万亿'
       }
       return (vol / 10000).toFixed(1) + '亿'
+    },
+    formatMoney(val) {
+      if (!val && val !== 0) return '-'
+      const sign = val > 0 ? '+' : ''
+      if (Math.abs(val) >= 100000000) {
+        return sign + (val / 100000000).toFixed(2) + '亿'
+      }
+      if (Math.abs(val) >= 10000) {
+        return sign + (val / 10000).toFixed(1) + '万'
+      }
+      return sign + val.toFixed(0)
+    },
+    getMoneyClass(val) {
+      if (!val) return ''
+      return val > 0 ? 'up' : 'down'
+    },
+    formatPrice(price) {
+      if (!price && price !== 0) return '-'
+      return price.toFixed(2)
+    },
+    formatChange(val) {
+      if (!val && val !== 0) return '-'
+      const sign = val > 0 ? '+' : ''
+      return sign + val.toFixed(2) + '%'
+    },
+    getSymbolName(symbol) {
+      const names = {
+        'USDX': '美元指数',
+        'USDCNY': '美元/人民币',
+        'CL.BRENT': '布伦特原油',
+        'GC.COMEX': 'COMEX黄金',
+      }
+      return names[symbol] || symbol
     },
     formatTime(time) {
       if (!time) return ''
@@ -407,6 +499,40 @@ export default {
 .sentiment-badge.cold {
   background: rgba(255, 107, 107, 0.4);
   color: #ff6b6b;
+}
+
+/* 资金流向 */
+.money-flow-card {
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+  color: white;
+}
+
+.money-flow-card .sentiment-grid {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+/* 全球宏观 */
+.global-macro-card {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
+}
+
+.global-macro-card .sentiment-grid {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.global-macro-card .change {
+  display: block;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.global-macro-card .change.up {
+  color: #4ade80;
+}
+
+.global-macro-card .change.down {
+  color: #f87171;
 }
 
 .sentiment-grid {

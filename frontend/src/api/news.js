@@ -98,6 +98,20 @@ export function getMarketMoneyFlow(days = 7) {
 }
 
 /**
+ * 获取最新资金流向数据
+ */
+export function getMarketMoneyFlowLatest() {
+  return request('/api/market/money-flow/latest')
+}
+
+/**
+ * 获取最新市场情绪数据
+ */
+export function getMarketSentimentLatest() {
+  return request('/api/market/sentiment/latest')
+}
+
+/**
  * 获取全球市场数据
  * @param {number} days - 获取天数
  */
