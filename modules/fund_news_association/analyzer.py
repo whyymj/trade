@@ -43,6 +43,8 @@ class FundNewsMatcher:
                 match_type = "industry" if news.confidence >= 0.8 else "partial"
                 score = news.confidence
 
+                news_industry_code = getattr(news, "industry_code", "") or code
+
                 assoc = FundNewsAssociation(
                     id=0,
                     fund_code=fund_code,
@@ -52,7 +54,7 @@ class FundNewsMatcher:
                     news_source=news.source,
                     news_url=news.url,
                     industry=news.industry,
-                    industry_code=news.industry_code,
+                    industry_code=news_industry_code,
                     match_type=match_type,
                     match_score=score,
                     created_at=datetime.now(),
@@ -119,7 +121,7 @@ class FundNewsMatcher:
 
     def _get_fund_name(self, fund_code: str) -> str:
         """获取基金名称"""
-        fund = fund_repo.get_fund_by_code(fund_code)
+        fund = fund_repo.get_fund_info(fund_code)
         return fund.get("fund_name", "") if fund else ""
 
 
