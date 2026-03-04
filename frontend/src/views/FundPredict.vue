@@ -4,7 +4,7 @@
     
     <div class="grid grid-2" style="gap: 24px;">
       <div class="card">
-        <h3 style="margin-bottom: 20px;">发起预测</h3>
+        <h3 style="margin-bottom: 20px;">LSTM 预测</h3>
         <div class="form-group">
           <label class="form-label">选择基金</label>
           <select v-model="selectedFund" class="input" @change="loadPrediction">
@@ -15,14 +15,24 @@
           </select>
         </div>
         
-        <button 
-          class="btn btn-primary" 
-          style="width: 100%;"
-          :disabled="!selectedFund || predicting"
-          @click="handlePredict"
-        >
-          {{ predicting ? '预测中...' : '开始预测' }}
-        </button>
+        <div style="display: flex; gap: 8px; margin-top: 12px;">
+          <button 
+            class="btn btn-primary" 
+            style="flex: 1;"
+            :disabled="!selectedFund || predicting"
+            @click="handlePredict"
+          >
+            {{ predicting ? '预测中...' : '开始预测' }}
+          </button>
+          <button 
+            class="btn" 
+            style="flex: 1; background: #67c23a; color: white;"
+            :disabled="!selectedFund || training"
+            @click="handleTrain"
+          >
+            {{ training ? '训练中...' : '训练模型' }}
+          </button>
+        </div>
         
         <div v-if="prediction" class="prediction-card" style="margin-top: 30px;">
           <div class="prediction-direction" :class="prediction.direction === 1 ? 'up' : 'down'">
@@ -111,12 +121,13 @@
 <script setup>
 import { ref, onMounted, nextTick } from 'vue'
 import * as echarts from 'echarts'
-import { getFundList, getFundWatchlist, predict, getPrediction, getFitPlot } from '@/api/fund'
+import { getFundList, getFundWatchlist, predict, getPrediction, getFitPlot, trainLstm } from '@/api/fund'
 
 const funds = ref([])
 const watchlist = ref([])
 const selectedFund = ref('')
 const predicting = ref(false)
+const training = ref(false)
 const prediction = ref(null)
 const fundsLoading = ref(true)
 const watchlistLoading = ref(true)
@@ -173,6 +184,21 @@ async function handlePredict() {
     alert('预测失败: ' + e.message)
   } finally {
     predicting.value = false
+  }
+}
+
+async function handleTrain() {
+  if (!selectedFund.value || training.value) return
+  
+  training.value = true
+  
+  try {
+    const result = await trainLstm(selectedFund.value, 365, 20)
+    alert(result.ok ? '模型训练完成！' : '训练失败: ' + result.error)
+  } catch (e) {
+    alert('训练失败: ' + e.message)
+  } finally {
+    training.value = false
   }
 }
 

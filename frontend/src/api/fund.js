@@ -86,6 +86,13 @@ export function predict(code) {
   })
 }
 
+export function trainLstm(code, days = 365, epochs = 20) {
+  return request('/api/fund/lstm/train', {
+    method: 'POST',
+    body: JSON.stringify({ fund_code: code, days, epochs }),
+  })
+}
+
 export function getPrediction(code) {
   return request(`/api/fund/prediction/${code}`)
 }

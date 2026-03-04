@@ -11,6 +11,8 @@
       />
       <button class="btn btn-primary" @click="handleSearch">搜索</button>
       <button class="btn btn-success" @click="showAddModal = true">+ 添加基金</button>
+      <button class="btn" style="background: #409eff; color: white;" @click="goToPredict">🎯 预测中心</button>
+      <button class="btn" style="background: #e6a23c; color: white;" @click="goToNews">📰 新闻</button>
     </div>
     
     <div class="filter-bar">
@@ -207,6 +209,14 @@ function changePage(newPage) {
 
 function goToDetail(code) {
   router.push(`/fund/${code}`)
+}
+
+function goToPredict() {
+  router.push('/predict')
+}
+
+function goToNews() {
+  router.push('/news')
 }
 
 async function handleAddBatch() {

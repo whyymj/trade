@@ -235,9 +235,7 @@
       
       <div v-if="activeTab === 'analysis'" class="card">
         <div v-if="analysisLoading" class="loading">AI 分析中，请稍候...</div>
-        <div v-else-if="analysisResult" class="analysis-content">
-          <pre style="white-space: pre-wrap; font-family: inherit; line-height: 1.6;">{{ analysisResult }}</pre>
-        </div>
+        <div v-else-if="analysisResult" class="analysis-content" v-html="analysisRendered"></div>
         <div v-else class="empty">暂无分析结果</div>
       </div>
     </template>
@@ -246,9 +244,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import * as echarts from 'echarts'
+import { marked } from 'marked'
 import { getFundList, getLatestNav, getFundNav, getIndicators, getBenchmark, getLlmAnalysis, getFundCycle } from '@/api/fund'
 
 const route = useRoute()
@@ -286,6 +285,10 @@ let navChartData = null // 存储净值数据用于绘制周期线
 const analysisType = ref('profile')
 const analysisLoading = ref(false)
 const analysisResult = ref('')
+const analysisRendered = computed(() => {
+  if (!analysisResult.value) return ''
+  return marked(analysisResult.value)
+})
 const analysisCache = ref({}) // 缓存分析结果
 
 const fundCode = ref('')
@@ -323,6 +326,51 @@ function getDateRange(value) {
   }
 }
 
+function renderChart() {
+  if (chartInstance && navChartData && navChartData.dates) {
+    const dates = navChartData.dates
+    const navs = navChartData.navs
+    const returns = navChartData.returns
+    
+    console.log('renderChart: dates:', dates.slice(0, 3), 'navs:', navs.slice(0, 3))
+    
+    let markLine = null
+    if (selectedCycle.value) {
+      const cycle = cycleAnalysis.value?.find(c => c.rank === selectedCycle.value)
+      if (cycle) {
+        const periodDays = cycle.period_days
+        const lineData = []
+        for (let i = 0; i < dates.length; i += Math.round(periodDays)) {
+          lineData.push({ xAxis: i })
+        }
+        console.log('renderChart: periodDays:', periodDays, 'lines:', lineData.length)
+        markLine = {
+          symbol: ['none', 'none'],
+          lineStyle: { type: 'dashed', color: '#ff6b6b', width: 2 },
+          data: lineData
+        }
+      }
+    }
+    
+    chartInstance.setOption({
+      tooltip: { trigger: 'axis' },
+      legend: { data: ['单位净值', '日涨跌幅'] },
+      xAxis: { type: 'category', data: dates },
+      yAxis: [
+        { type: 'value', name: '净值' },
+        { type: 'value', name: '涨跌幅%' }
+      ],
+      series: [
+        { name: '单位净值', type: 'line', data: navs, smooth: true, markLine },
+        { name: '日涨跌幅', type: 'bar', yAxisIndex: 1, data: returns }
+      ]
+    })
+    console.log('renderChart: chart option set')
+  } else {
+    console.warn('renderChart: No data or chartInstance is null')
+  }
+}
+
 async function loadNavData() {
   if (!fundCode.value) return
   const range = getDateRange(chartRange.value)
@@ -335,55 +383,13 @@ async function loadNavData() {
     console.log('loadNavData: got', data.length, 'records')
     console.log('chartInstance:', chartInstance)
     
-    // 存储数据供周期线使用
     navChartData = {
       dates: data.map(d => d.nav_date),
       navs: data.map(d => d.unit_nav),
       returns: data.map(d => d.daily_return ? d.daily_return * 100 : 0)
     }
     
-    if (chartInstance && data.length > 0) {
-      const dates = navChartData.dates
-      const navs = navChartData.navs
-      const returns = navChartData.returns
-      
-      console.log('Setting chart option, dates:', dates.slice(0, 3), 'navs:', navs.slice(0, 3))
-      
-      // 如果已选择周期，绘制周期线
-      let markLine = null
-      if (selectedCycle.value) {
-        const cycle = cycleAnalysis.value?.find(c => c.rank === selectedCycle.value)
-        if (cycle) {
-          const periodDays = cycle.period_days
-          const lineData = []
-          for (let i = 0; i < dates.length; i += Math.round(periodDays)) {
-            lineData.push({ xAxis: i })
-          }
-          markLine = {
-            symbol: ['none', 'none'],
-            lineStyle: { type: 'dashed', color: '#ff6b6b', width: 2 },
-            data: lineData
-          }
-        }
-      }
-      
-      chartInstance.setOption({
-        tooltip: { trigger: 'axis' },
-        legend: { data: ['单位净值', '日涨跌幅'] },
-        xAxis: { type: 'category', data: dates },
-        yAxis: [
-          { type: 'value', name: '净值' },
-          { type: 'value', name: '涨跌幅%' }
-        ],
-        series: [
-          { name: '单位净值', type: 'line', data: navs, smooth: true, markLine },
-          { name: '日涨跌幅', type: 'bar', yAxisIndex: 1, data: returns }
-        ]
-      })
-      console.log('Chart option set')
-    } else {
-      console.warn('No data or chartInstance is null')
-    }
+    renderChart()
   } catch (e) {
     console.error('加载净值数据失败:', e)
   }
@@ -445,12 +451,18 @@ async function loadCycleData() {
 }
 
 function toggleCycle(cycle) {
+  console.log('toggleCycle called:', cycle)
   if (selectedCycle.value === cycle.rank) {
     selectedCycle.value = null
+    console.log('Deselected cycle')
   } else {
     selectedCycle.value = cycle.rank
+    console.log('Selected cycle:', cycle.rank)
   }
-  drawCycleLines()
+  // 重新渲染完整图表
+  if (chartInstance && navChartData && navChartData.dates) {
+    renderChart()
+  }
 }
 
 async function loadAnalysis(type = 'report') {
@@ -564,3 +576,21 @@ watch(activeTab, async (tab) => {
   }
 })
 </script>
+
+<style>
+.analysis-content {
+  line-height: 1.8;
+  font-size: 14px;
+}
+.analysis-content h1 { font-size: 20px; margin: 16px 0 12px; }
+.analysis-content h2 { font-size: 18px; margin: 14px 0 10px; }
+.analysis-content h3 { font-size: 16px; margin: 12px 0 8px; }
+.analysis-content p { margin: 8px 0; }
+.analysis-content ul, .analysis-content ol { margin: 8px 0; padding-left: 20px; }
+.analysis-content li { margin: 4px 0; }
+.analysis-content code { background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-size: 13px; }
+.analysis-content table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+.analysis-content th, .analysis-content td { border: 1px solid #eee; padding: 8px; text-align: left; }
+.analysis-content th { background: #f9f9f9; }
+.analysis-content blockquote { border-left: 3px solid #409eff; margin: 12px 0; padding: 8px 16px; background: #f9f9f9; }
+</style>

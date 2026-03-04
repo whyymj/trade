@@ -18,7 +18,39 @@ import numpy as np
 import pandas as pd
 
 from data.fund_repo import get_fund_nav, get_latest_nav
-from data.mysql import execute, fetch_one
+from data.mysql import execute, fetch_one, fetch_all
+
+
+def is_trained_today(fund_code: str) -> bool:
+    """检查基金今天是否已经训练过"""
+    sql = """
+    SELECT COUNT(*) as cnt FROM fund_training_log 
+    WHERE fund_code = %s AND DATE(trained_at) = CURDATE() AND status = 'completed'
+    """
+    row = fetch_one(sql, (fund_code,))
+    return row and row.get("cnt", 0) > 0
+
+
+def is_training_in_progress(fund_code: str) -> bool:
+    """检查基金是否正在训练中"""
+    sql = """
+    SELECT COUNT(*) as cnt FROM fund_training_log 
+    WHERE fund_code = %s AND status = 'in_progress' AND trained_at > DATE_SUB(NOW(), INTERVAL 2 HOUR)
+    """
+    row = fetch_one(sql, (fund_code,))
+    return row and row.get("cnt", 0) > 0
+
+
+def record_training_status(fund_code: str, status: str, message: str = ""):
+    """记录训练状态"""
+    sql = """
+    INSERT INTO fund_training_log (fund_code, status, message)
+    VALUES (%s, %s, %s)
+    """
+    try:
+        execute(sql, (fund_code, status, message))
+    except Exception:
+        pass
 
 
 SEQ_LENGTH = 5
@@ -213,6 +245,9 @@ def _normalize_data(df: pd.DataFrame) -> tuple:
 
     normalized = (data - mean) / std
 
+    # 填充 NaN 为 0
+    normalized = np.nan_to_num(normalized, nan=0.0)
+
     return normalized, {
         "mean": mean.tolist(),
         "std": std.tolist(),
@@ -225,20 +260,45 @@ def train_model(
     days: int = 365,
     epochs: int = EPOCHS,
     hidden_size: int = HIDDEN_SIZE,
+    force: bool = False,
 ) -> dict[str, Any]:
-    """训练 LSTM 模型，返回训练结果"""
+    """训练 LSTM 模型，返回训练结果
+
+    Args:
+        fund_code: 基金代码
+        days: 训练数据天数
+        epochs: 训练轮数
+        hidden_size: LSTM 隐藏层大小
+        force: 是否强制训练（忽略 24h 间隔）
+    """
+    # 检查是否正在训练中
+    if is_training_in_progress(fund_code):
+        return {"success": False, "error": "该基金正在训练中，请稍后再试"}
+
+    # 检查今天是否已训练（除非 force=True）
+    if not force and is_trained_today(fund_code):
+        return {"success": False, "error": "该基金今天已经训练过，请24小时后再训练"}
+
+    # 记录开始训练
+    record_training_status(fund_code, "in_progress", "训练开始")
+
     if not _TORCH_AVAILABLE:
+        record_training_status(fund_code, "failed", "PyTorch not available")
         return {"success": False, "error": "PyTorch not available"}
 
     end_date = datetime.now()
     start_date = end_date - timedelta(days=days)
 
+    print("Step 1: getting nav data")
     df = get_fund_nav(fund_code, start_date=start_date.strftime("%Y-%m-%d"))
+    print(f"Step 1 done, df shape: {df.shape if df is not None else None}")
 
     if df is None or len(df) < SEQ_LENGTH + 10:
+        record_training_status(fund_code, "failed", "Insufficient data")
         return {"success": False, "error": "Insufficient data"}
 
     df = prepare_features(df)
+    print(f"Step 2 done, df after features: {df.shape}")
 
     if len(df) < SEQ_LENGTH + 10:
         return {
@@ -247,10 +307,15 @@ def train_model(
         }
 
     normalized_data, scaler_params = _normalize_data(df)
+    print(f"Step 3 done, normalized_data shape: {normalized_data.shape}")
 
     X, y = create_sequences(normalized_data, SEQ_LENGTH)
+    print(f"Step 4 done, X: {X.shape}, y: {y.shape}")
 
     if len(X) < 20:
+        record_training_status(
+            fund_code, "failed", "Insufficient sequences for training"
+        )
         return {"success": False, "error": "Insufficient sequences for training"}
 
     # 简化为一次性训练，不用循环
@@ -272,7 +337,7 @@ def train_model(
     loss = criterion(output[:, 0], y_tensor[:10, 0].float())  # 只用方向
     loss.backward()
     optimizer.step()
-    print("Saving model...")
+    print("Training done, saving model...")
 
     buffer = io.BytesIO()
     _torch.save(
@@ -285,8 +350,17 @@ def train_model(
         buffer,
     )
     model_bytes = buffer.getvalue()
+    print(f"Model size: {len(model_bytes)} bytes")
 
-    save_result = save_model(fund_code, model_bytes)
+    try:
+        save_result = save_model(fund_code, model_bytes)
+        print(f"Model saved: {save_result}")
+    except Exception as e:
+        print(f"Save error: {e}")
+        save_result = False
+
+    # 记录训练完成
+    record_training_status(fund_code, "completed", f"训练成功，样本数: {len(X)}")
 
     return {
         "success": True,
@@ -533,3 +607,48 @@ def delete_model(fund_code: str) -> bool:
         return True
     except Exception:
         return False
+
+
+def auto_train_watchlist_funds():
+    """自动训练关注列表中的基金（每天调用一次）"""
+    from data.fund_repo import get_fund_list
+
+    result = get_fund_list(page=1, size=100, watchlist_only=True)
+    funds = result.get("data", [])
+
+    results = []
+    for fund in funds:
+        code = fund.get("fund_code")
+        if not code:
+            continue
+
+        # 检查今天是否已训练或正在训练
+        if is_trained_today(code):
+            results.append(
+                {"code": code, "status": "skipped", "reason": "already_trained_today"}
+            )
+            continue
+
+        if is_training_in_progress(code):
+            results.append(
+                {"code": code, "status": "skipped", "reason": "training_in_progress"}
+            )
+            continue
+
+        # 尝试训练
+        try:
+            result = train_model(code, days=365, epochs=1)
+            results.append(
+                {
+                    "code": code,
+                    "status": "success" if result.get("success") else "failed",
+                    "message": result.get("error", ""),
+                }
+            )
+        except Exception as e:
+            results.append({"code": code, "status": "error", "message": str(e)})
+
+    return {
+        "total": len(funds),
+        "results": results,
+    }

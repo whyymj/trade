@@ -23,6 +23,30 @@ const routes = [
     component: () => import('@/views/FundPredict.vue'),
     meta: { title: '预测中心' },
   },
+  {
+    path: '/news',
+    name: 'NewsHome',
+    component: () => import('@/views/NewsHome.vue'),
+    meta: { title: '财经新闻' },
+  },
+  {
+    path: '/news/list',
+    name: 'NewsList',
+    component: () => import('@/views/NewsList.vue'),
+    meta: { title: '新闻列表' },
+  },
+  {
+    path: '/news/analysis',
+    name: 'NewsAnalysis',
+    component: () => import('@/views/NewsAnalysis.vue'),
+    meta: { title: '新闻分析' },
+  },
+  {
+    path: '/news/:id',
+    name: 'NewsDetail',
+    component: () => import('@/views/NewsDetail.vue'),
+    meta: { title: '新闻详情' },
+  },
 ]
 
 const router = createRouter({

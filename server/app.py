@@ -11,6 +11,10 @@ import atexit
 import math
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from flask import Flask, abort, g, redirect, request, send_from_directory
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -42,9 +46,27 @@ def _sync_all_funds():
         print(f"[定时任务] 基金数据同步失败: {e}")
 
 
+def _auto_train_watchlist():
+    """每日定时训练关注列表中的基金"""
+    try:
+        from analysis.fund_lstm import auto_train_watchlist_funds
+
+        result = auto_train_watchlist_funds()
+        success = sum(
+            1 for r in result.get("results", []) if r.get("status") == "success"
+        )
+        total = len(result.get("results", []))
+        print(f"[定时任务] LSTM自动训练完成: {success}/{total}")
+    except Exception as e:
+        print(f"[定时任务] LSTM自动训练失败: {e}")
+
+
 scheduler = BackgroundScheduler()
 scheduler.add_job(
     func=_sync_all_funds, trigger="cron", hour=3, minute=0, id="sync_funds"
+)
+scheduler.add_job(
+    func=_auto_train_watchlist, trigger="cron", hour=4, minute=0, id="auto_train"
 )
 
 
@@ -96,6 +118,13 @@ def create_app(static_folder=None):
     app = Flask(__name__, static_folder=None)
     app.json.default = _custom_json_default
     app.register_blueprint(api_bp)
+
+    # 注册新闻和市场API蓝图
+    from server.routes.news import news_bp
+    from server.routes.market import market_bp
+
+    app.register_blueprint(news_bp)
+    app.register_blueprint(market_bp)
 
     @app.before_request
     def _request_start():

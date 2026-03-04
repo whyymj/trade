@@ -255,7 +255,11 @@ def _cached(ttl_key: str):
         @wraps(f)
         def wrapper(*args, **kwargs):
             cache = get_cache()
-            key = _cache_key(f.__name__, *args, **kwargs)
+            # 从 request 对象获取查询参数，确保不同参数生成不同缓存 key
+            from flask import request
+
+            query_params = {k: v for k, v in request.args.items() if v}
+            key = _cache_key(f.__name__, **query_params)
             cached_val = cache.get(key)
             if cached_val is not None:
                 return cached_val
@@ -635,8 +639,25 @@ def fund_prediction(code: str):
     result = fund_predict_impl(code)
     return jsonify(result)
 
-    result = fund_predict_impl(code)
-    return jsonify(result)
+
+@api_bp.route("/fund/lstm/train", methods=["POST"])
+def fund_lstm_train():
+    """训练LSTM模型。Body: fund_code, days(默认365), epochs(默认20)"""
+    from analysis.fund_lstm import train_model
+
+    body = request.get_json(silent=True) or {}
+    fund_code = (body.get("fund_code") or "").strip()
+    if not fund_code:
+        return jsonify({"error": "缺少基金代码"}), 400
+
+    days = body.get("days", 365)
+    epochs = body.get("epochs", 20)
+
+    try:
+        result = train_model(fund_code, days=days, epochs=epochs)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": f"训练失败: {e}"}), 500
 
 
 @api_bp.route("/fund/fit-plot/<code>", methods=["GET"])
@@ -1066,4 +1087,3 @@ def sync_index():
             "results": results,
         }
     )
-

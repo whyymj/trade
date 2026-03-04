@@ -90,8 +90,18 @@ def get_client() -> Optional[MiniMaxClient]:
     """获取 MiniMax 客户端"""
     global _client
     if _client is None:
+        from dotenv import load_dotenv
+
+        load_dotenv()
         _client = MiniMaxClient()
     return _client
+
+
+def reset_client():
+    """重置客户端（用于重新加载环境变量）"""
+    global _client
+    _client = None
+    return get_client()
 
 
 def is_available() -> bool:

@@ -344,6 +344,8 @@ def create_all_tables() -> None:
     create_stock_daily_table()
     create_lstm_tables()
     create_fund_tables()
+    create_news_tables()
+    create_market_tables()
 
 
 # ---------- 基金相关表 ----------
@@ -446,6 +448,144 @@ def create_fund_tables() -> None:
     create_index_data_table()
     create_fund_prediction_table()
     create_fund_model_table()
+
+
+# ---------- 新闻相关表 ----------
+
+
+def create_news_data_table() -> None:
+    """新闻数据表"""
+    sql = """
+    CREATE TABLE IF NOT EXISTS news_data (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        news_date DATE COMMENT '新闻日期',
+        title VARCHAR(256) NOT NULL,
+        content TEXT,
+        source VARCHAR(32),
+        url VARCHAR(512),
+        published_at DATETIME,
+        category VARCHAR(32) DEFAULT 'general',
+        sentiment VARCHAR(16) DEFAULT 'neutral',
+        importance TINYINT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_url (url),
+        KEY idx_news_date (news_date),
+        KEY idx_category (category),
+        KEY idx_published_at (published_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """
+    execute(sql)
+
+
+def create_news_analysis_table() -> None:
+    """新闻分析结果表"""
+    sql = """
+    CREATE TABLE IF NOT EXISTS news_analysis (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        analysis_date DATE NOT NULL,
+        news_count INT DEFAULT 0,
+        summary TEXT,
+        deep_analysis TEXT,
+        market_impact VARCHAR(16) DEFAULT 'neutral',
+        key_events JSON,
+        investment_advice TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_date (analysis_date)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """
+    execute(sql)
+
+
+# ---------- 市场数据相关表 ----------
+
+
+def create_macro_data_table() -> None:
+    """宏观经济数据表"""
+    sql = """
+    CREATE TABLE IF NOT EXISTS macro_data (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        indicator VARCHAR(32) NOT NULL,
+        period VARCHAR(16) NOT NULL,
+        value DECIMAL(20,4),
+        unit VARCHAR(16),
+        source VARCHAR(32),
+        publish_date DATE,
+        trade_date DATE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_indicator_period (indicator, period)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """
+    execute(sql)
+
+
+def create_money_flow_table() -> None:
+    """资金流向表"""
+    sql = """
+    CREATE TABLE IF NOT EXISTS money_flow (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        trade_date DATE NOT NULL,
+        north_money DECIMAL(20,2),
+        north_buy DECIMAL(20,2),
+        north_sell DECIMAL(20,2),
+        main_money DECIMAL(20,2),
+        margin_balance DECIMAL(20,2),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_trade_date (trade_date),
+        KEY idx_trade_date (trade_date)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """
+    execute(sql)
+
+
+def create_market_sentiment_table() -> None:
+    """市场情绪表"""
+    sql = """
+    CREATE TABLE IF NOT EXISTS market_sentiment (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        trade_date DATE NOT NULL,
+        volume DECIMAL(20,2),
+        up_count INT DEFAULT 0,
+        down_count INT DEFAULT 0,
+        turnover_rate DECIMAL(10,4),
+        advance_count INT DEFAULT 0,
+        decline_count INT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_trade_date (trade_date),
+        KEY idx_trade_date (trade_date)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """
+    execute(sql)
+
+
+def create_global_macro_table() -> None:
+    """全球宏观数据表"""
+    sql = """
+    CREATE TABLE IF NOT EXISTS global_macro (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        trade_date DATE NOT NULL,
+        symbol VARCHAR(16) NOT NULL,
+        close_price DECIMAL(14,4),
+        change_pct DECIMAL(10,4),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_symbol_date (symbol, trade_date),
+        KEY idx_trade_date (trade_date)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """
+    execute(sql)
+
+
+def create_news_tables() -> None:
+    """创建新闻相关全部表"""
+    create_news_data_table()
+    create_news_analysis_table()
+
+
+def create_market_tables() -> None:
+    """创建市场数据相关全部表"""
+    create_macro_data_table()
+    create_money_flow_table()
+    create_market_sentiment_table()
+    create_global_macro_table()
 
 
 if __name__ == "__main__":
