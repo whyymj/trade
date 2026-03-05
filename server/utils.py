@@ -537,3 +537,12 @@ def save_config(updates: dict) -> dict:
         return {"ok": True, "message": "已保存"}
     except Exception as e:
         return {"ok": False, "message": str(e)}
+
+
+def success_response(data=None, message="ok"):
+    from flask import jsonify
+    return jsonify({"code": 0, "data": data, "message": message})
+
+def error_response(message, code=400, http_status=None):
+    from flask import jsonify
+    return jsonify({"code": code, "message": message}), (http_status or code)

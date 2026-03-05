@@ -109,6 +109,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getNewsList } from '@/api/news'
+import { formatTime, getCategoryClass, truncateContent } from '@/utils/formatters'
 
 const router = useRouter()
 
@@ -186,35 +187,6 @@ function handlePageChange(page) {
 // 跳转详情
 function goToDetail(newsId) {
   router.push('/news/' + encodeURIComponent(newsId))
-}
-
-// 格式化时间
-function formatTime(timeStr) {
-  if (!timeStr) return ''
-  const date = new Date(timeStr)
-  return date.toLocaleDateString('zh-CN', { 
-    month: 'short', 
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-}
-
-// 截断内容
-function truncateContent(content) {
-  if (!content) return ''
-  return content.length > 100 ? content.substring(0, 100) + '...' : content
-}
-
-// 获取分类样式类
-function getCategoryClass(category) {
-  const map = {
-    '宏观': 'category-macro',
-    '行业': 'category-industry',
-    '全球': 'category-global',
-    '政策': 'category-policy',
-  }
-  return map[category] || ''
 }
 
 onMounted(() => {
@@ -320,22 +292,22 @@ onMounted(() => {
   font-weight: 600;
 }
 
-.category-macro {
+.news-category.macro {
   background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
   color: #1976d2;
 }
 
-.category-industry {
+.news-category.industry {
   background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
   color: #388e3c;
 }
 
-.category-global {
+.news-category.global {
   background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
   color: #f57c00;
 }
 
-.category-policy {
+.news-category.policy {
   background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
   color: #7b1fa2;
 }

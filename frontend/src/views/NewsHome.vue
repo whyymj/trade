@@ -141,12 +141,22 @@
 import { useRouter } from 'vue-router'
 import { getNewsList, analyzeNews as apiAnalyzeNews, getLatestAnalysis, syncNews as apiSyncNews } from '@/api/news'
 import { getMarketSentimentLatest, getMarketMoneyFlowLatest, getMarketGlobal } from '@/api/news'
+import {
+  formatVolume, formatMoney, formatChange, formatPrice, formatTime,
+  getCategoryClass, getSentimentLabel, getSentimentType,
+  getImpactLabel, getMoneyClass
+} from '@/utils/formatters'
 
 export default {
   name: 'NewsHome',
   setup() {
     const router = useRouter()
-    return { router }
+    return {
+      router,
+      formatVolume, formatMoney, formatChange, formatPrice, formatTime,
+      getCategoryClass, getSentimentLabel, getSentimentType,
+      getImpactLabel, getMoneyClass
+    }
   },
   data() {
     return {
@@ -247,37 +257,6 @@ export default {
         this.analyzing = false
       }
     },
-    formatVolume(vol) {
-      if (!vol) return '-'
-      if (vol >= 100000000) {
-        return (vol / 100000000).toFixed(2) + '万亿'
-      }
-      return (vol / 10000).toFixed(1) + '亿'
-    },
-    formatMoney(val) {
-      if (!val && val !== 0) return '-'
-      const sign = val > 0 ? '+' : ''
-      if (Math.abs(val) >= 100000000) {
-        return sign + (val / 100000000).toFixed(2) + '亿'
-      }
-      if (Math.abs(val) >= 10000) {
-        return sign + (val / 10000).toFixed(1) + '万'
-      }
-      return sign + val.toFixed(0)
-    },
-    getMoneyClass(val) {
-      if (!val) return ''
-      return val > 0 ? 'up' : 'down'
-    },
-    formatPrice(price) {
-      if (!price && price !== 0) return '-'
-      return price.toFixed(2)
-    },
-    formatChange(val) {
-      if (!val && val !== 0) return '-'
-      const sign = val > 0 ? '+' : ''
-      return sign + val.toFixed(2) + '%'
-    },
     getSymbolName(symbol) {
       const names = {
         'USDX': '美元指数',
@@ -287,10 +266,6 @@ export default {
       }
       return names[symbol] || symbol
     },
-    formatTime(time) {
-      if (!time) return ''
-      return time.substring(5, 16)
-    },
     goToDetail(newsId) {
       this.router.push('/news/' + encodeURIComponent(newsId))
     },
@@ -299,35 +274,6 @@ export default {
     },
     goToAnalysis() {
       this.router.push('/news/analysis')
-    },
-    getImpactLabel(impact) {
-      const map = { bullish: '看涨', bearish: '看跌', neutral: '中性' }
-      return map[impact] || '中性'
-    },
-    getSentimentLabel(sentiment) {
-      if (!sentiment) return '中性'
-      const up = sentiment.up_count || 0
-      const down = sentiment.down_count || 0
-      if (up > down * 2) return '偏热'
-      if (down > up * 2) return '偏冷'
-      return '中性'
-    },
-    getSentimentType(sentiment) {
-      if (!sentiment) return 'neutral'
-      const up = sentiment.up_count || 0
-      const down = sentiment.down_count || 0
-      if (up > down * 2) return 'hot'
-      if (down > up * 2) return 'cold'
-      return 'neutral'
-    },
-    getCategoryClass(category) {
-      const map = {
-        '宏观': 'macro',
-        '政策': 'policy',
-        '行业': 'industry',
-        '全球': 'global',
-      }
-      return map[category] || ''
     },
   }
 }

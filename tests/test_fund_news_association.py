@@ -24,7 +24,7 @@ class TestFundNewsMatcher:
 
     @patch("modules.fund_news_association.analyzer.FundIndustryRepo")
     @patch("modules.fund_news_association.analyzer.ClassificationRepo")
-    @patch("modules.fund_news_association.analyzer.FundRepo")
+    @patch("modules.fund_news_association.analyzer.fund_repo")
     def test_match_fund_news_no_industry(
         self, mock_fund_repo, mock_news_repo, mock_industry_repo
     ):
@@ -34,7 +34,6 @@ class TestFundNewsMatcher:
         matcher = FundNewsMatcher()
         matcher.fund_industry_repo = mock_industry_repo.return_value
         matcher.news_classification_repo = mock_news_repo.return_value
-        matcher.fund_repo = mock_fund_repo.return_value
 
         result = matcher.match_fund_news("000001")
 
@@ -42,7 +41,7 @@ class TestFundNewsMatcher:
 
     @patch("modules.fund_news_association.analyzer.FundIndustryRepo")
     @patch("modules.fund_news_association.analyzer.ClassificationRepo")
-    @patch("modules.fund_news_association.analyzer.FundRepo")
+    @patch("modules.fund_news_association.analyzer.fund_repo")
     def test_match_fund_news_with_industry(
         self, mock_fund_repo, mock_news_repo, mock_industry_repo
     ):
@@ -60,14 +59,13 @@ class TestFundNewsMatcher:
         mock_news.industry_code = "I001"
         mock_news.confidence = 0.85
         mock_news_repo.return_value.get_by_industry.return_value = [mock_news]
-        mock_fund_repo.return_value.get_fund_by_code.return_value = {
+        mock_fund_repo.get_fund_info.return_value = {
             "fund_name": "测试基金"
         }
 
         matcher = FundNewsMatcher()
         matcher.fund_industry_repo = mock_industry_repo.return_value
         matcher.news_classification_repo = mock_news_repo.return_value
-        matcher.fund_repo = mock_fund_repo.return_value
 
         result = matcher.match_fund_news("000001")
 

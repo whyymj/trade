@@ -4,10 +4,13 @@
 接口说明见项目根目录 docs/API.md。
 """
 
+import logging
 import os
 import threading
 import time
 from datetime import date, datetime, timedelta
+
+logger = logging.getLogger(__name__)
 
 # 训练进程：symbol -> 开始时间戳，避免同一股票并发训练；超时未结束的视为异常残留，自动解除
 TRAINING_LOCK_MAX_SECONDS = 7200  # 2 小时，防止刷新/断线后一直报「正在训练中」
@@ -227,6 +230,11 @@ def _list_stocks():
 api_bp = Blueprint("api", __name__, url_prefix="/api")
 
 
+@api_bp.route("/health", methods=["GET"])
+def health_check():
+    return jsonify({"code": 0, "data": {"status": "healthy"}, "message": "ok"})
+
+
 # =====================================================
 # 基金 API 路由（/api/fund/*, /api/index/*, /api/sync/*）
 # =====================================================
@@ -324,9 +332,12 @@ def fund_watchlist():
 @api_bp.route("/fund/add", methods=["POST"])
 def fund_add():
     """添加基金。Body: fund_code, fund_name?, fund_type?, manager?, establishment_date?, fund_scale?
-    如果不提供 fund_name，会自动从网上抓取"""
+    如果不提供 fund_name，会自动从网上抓取
+    添加成功后会自动抓取行业标签和持仓信息"""
     from data import fund_repo, fund_fetcher
+    from data import fund_holdings
     import pandas as pd
+    import threading
 
     body = request.get_json(silent=True) or {}
     fund_code = (body.get("fund_code") or "").strip()
@@ -368,10 +379,74 @@ def fund_add():
         establishment_date=establishment_date,
         fund_scale=fund_scale,
     )
+
     if ok:
         _clear_fund_cache("fund_list")
-        return jsonify({"ok": True, "message": "添加成功"})
+
+        # 异步抓取行业标签和持仓信息
+        def async_fetch():
+            try:
+                # 抓取持仓信息
+                holdings_data = fund_holdings.get_fund_detail_info(fund_code)
+                if holdings_data.get("holdings"):
+                    # 更新基金经理
+                    if holdings_data.get("manager"):
+                        manager_name = holdings_data["manager"].get("name")
+                        if manager_name:
+                            fund_repo.add_fund(
+                                fund_code=fund_code, fund_name="", manager=manager_name
+                            )
+                    # 设置行业标签（根据持仓推断）
+                    tags = _infer_industry_tags(holdings_data.get("holdings", []))
+                    if tags:
+                        fund_repo.update_fund_industry_tags(fund_code, tags)
+            except Exception as e:
+                logger.error("异步抓取失败: %s", e)
+
+        # 启动异步任务
+        threading.Thread(target=async_fetch, daemon=True).start()
+
+        return jsonify({"ok": True, "message": "添加成功，正在后台分析"})
     return jsonify({"ok": False, "message": "添加失败"}), 500
+
+
+def _infer_industry_tags(holdings: list) -> list:
+    """根据持仓股票推断行业标签"""
+    if not holdings:
+        return []
+
+    # 行业关键词映射
+    industry_keywords = {
+        "新能源": [
+            "宁德时代",
+            "比亚迪",
+            "隆基绿能",
+            "光伏",
+            "储能",
+            "锂电池",
+            "新能源车",
+        ],
+        "半导体": ["中芯国际", "北方华创", "立讯精密", "芯片", "半导体", "集成电路"],
+        "医药": ["恒瑞医药", "药明康德", "迈瑞医疗", "医药", "医疗器械", "创新药"],
+        "消费": ["贵州茅台", "五粮液", "伊利股份", "美的", "消费", "白酒", "食品"],
+        "金融": ["中国平安", "招商银行", "兴业银行", "银行", "保险", "证券"],
+        "互联网": ["腾讯", "阿里", "美团", "字节", "互联网", "软件"],
+        "港股": ["腾讯控股", "阿里巴巴", "美团", "快手", "港股"],
+        "银行": ["工商银行", "建设银行", "农业银行", "招商银行", "银行"],
+        "军工": ["中国航发", "中航沈飞", "军工", "航天", "航空"],
+    }
+
+    stock_names = [h.get("stock_name", "") for h in holdings]
+    found_tags = set()
+
+    for tag, keywords in industry_keywords.items():
+        for stock in stock_names:
+            for kw in keywords:
+                if kw in stock:
+                    found_tags.add(tag)
+                    break
+
+    return list(found_tags)[:3] if found_tags else ["混合配置"]
 
 
 @api_bp.route("/fund/<code>", methods=["GET"])
@@ -463,6 +538,26 @@ def fund_nav(code: str):
             "data": df.to_dict(orient="records"),
         }
     )
+
+
+@api_bp.route("/fund/holdings/<code>", methods=["GET"])
+def fund_holdings(code: str):
+    """基金持仓信息"""
+    from data import fund_holdings as fh
+
+    code = (code or "").strip()
+    if not code:
+        return jsonify({"error": "缺少基金代码"}), 400
+
+    try:
+        holdings = fh.get_fund_holdings(code)
+        manager_info = fh.get_fund_manager(code)
+
+        return jsonify(
+            {"code": 0, "data": {"holdings": holdings, "manager": manager_info}}
+        )
+    except Exception as e:
+        return jsonify({"code": -1, "error": str(e)}), 500
 
 
 # ---------- 基金分析 ----------

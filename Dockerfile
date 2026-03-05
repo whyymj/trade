@@ -34,6 +34,7 @@ COPY server.py ./
 COPY server/ ./server/
 COPY data/ ./data/
 COPY analysis/ ./analysis/
+COPY modules/ ./modules/
 COPY cleanup_analysis_temp.py ./
 
 # 默认配置（无敏感信息；MySQL 由环境变量 MYSQL_* 提供）

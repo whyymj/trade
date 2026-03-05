@@ -28,6 +28,31 @@ def test_fund_list():
     assert result is not None
     assert "data" in result
     assert len(result["data"]) > 0
+    print(f"✅ 基金列表: {len(result['data'])}条")
+
+
+def test_fund_list_with_nav():
+    """测试基金列表包含净值数据"""
+    from data import fund_repo
+    from data.mysql import fetch_all
+
+    # 确保有净值数据
+    nav_count = fetch_all("SELECT COUNT(*) as cnt FROM fund_nav")
+    if nav_count[0]["cnt"] > 0:
+        result = fund_repo.get_fund_list(page=1, size=10)
+        assert result is not None
+
+        # 检查是否有基金有净值
+        codes = [f["fund_code"] for f in result["data"]]
+        from data import fund_repo as fr
+
+        for code in codes[:3]:
+            nav = fr.get_latest_nav(code)
+            if nav:
+                print(f"✅ {code} 最新净值: {nav.get('unit_nav')}")
+                break
+    else:
+        print("⚠️ 无净值数据，跳过测试")
     print("✅ 基金列表测试通过")
 
 
@@ -137,7 +162,7 @@ def test_llm_client():
     """测试 LLM 客户端"""
     from analysis.llm import get_minimax_client
 
-    client = get_client()
+    client = get_minimax_client()
     assert client is not None, "LLM 客户端未初始化"
     assert client.is_available(), "LLM 服务不可用"
     print("✅ LLM 客户端测试通过")
@@ -147,7 +172,7 @@ def test_llm_analysis():
     """测试 LLM 分析功能"""
     from analysis.llm import get_minimax_client
 
-    client = get_client()
+    client = get_minimax_client()
     if not client.is_available():
         print("⚠️  LLM 服务不可用，跳过分析测试")
         return
@@ -279,6 +304,134 @@ def test_api_fund_add():
     data = resp.get_json()
     assert data.get("ok") == True
     print(f"✅ API 添加基金测试通过_fund_add")
+
+
+def test_fund_holdings():
+    """测试基金持仓数据获取"""
+    from data import fund_holdings
+
+    # 测试热门基金
+    holdings = fund_holdings.get_fund_holdings("000311")
+    assert holdings is not None
+    assert len(holdings) > 0
+    assert "stock_name" in holdings[0]
+    assert "hold_ratio" in holdings[0]
+    print(f"✅ 持仓数据获取成功: {len(holdings)}只股票")
+
+    # 测试经理信息
+    manager = fund_holdings.get_fund_manager("000311")
+    assert manager is not None
+    assert "name" in manager
+    print(f"✅ 经理信息: {manager.get('name')}")
+
+
+def test_fund_industry_tags():
+    """测试行业标签推断"""
+    from data import fund_holdings
+
+    # 测试行业标签推断函数
+    holdings = [
+        {"stock_name": "贵州茅台", "hold_ratio": 6.5},
+        {"stock_name": "五粮液", "hold_ratio": 4.2},
+        {"stock_name": "宁德时代", "hold_ratio": 3.8},
+    ]
+
+    # 模拟推断逻辑
+    from server.routes.api import _infer_industry_tags
+
+    tags = _infer_industry_tags(holdings)
+
+    assert tags is not None
+    assert len(tags) > 0
+    assert "消费" in tags or "新能源" in tags
+    print(f"✅ 行业标签推断成功: {tags}")
+
+
+def test_fund_auto_analyze():
+    """测试添加基金时自动分析行业标签"""
+    from server.app import create_app
+    from data import fund_repo
+
+    app = create_app()
+    client = app.test_client()
+
+    # 添加基金
+    resp = client.post(
+        "/api/fund/add", json={"fund_code": "000001", "fund_name": "测试基金"}
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data.get("ok") == True
+    assert "后台分析" in data.get("message", "")
+    print(f"✅ 添加基金API正常: {data.get('message')}")
+
+
+def test_fund_list_with_tags():
+    """测试基金列表返回行业标签"""
+    from data import fund_repo
+
+    result = fund_repo.get_fund_list(page=1, size=5)
+    assert result is not None
+    assert "data" in result
+
+    if result["data"]:
+        fund = result["data"][0]
+        assert "industry_tags" in fund
+        print(f"✅ 基金列表包含行业标签字段")
+        if fund["industry_tags"]:
+            print(f"   标签: {fund['industry_tags']}")
+
+
+def test_fund_indicators_api():
+    """测试基金业绩指标API"""
+    from server.app import create_app
+
+    app = create_app()
+    client = app.test_client()
+
+    resp = client.get("/api/fund/indicators/000311")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert "annual_return" in data
+    assert "sharpe_ratio" in data
+    assert "max_drawdown" in data
+    print(
+        f"✅ 业绩指标: 年化收益={data.get('annual_return', 0):.2%}, 夏普比率={data.get('sharpe_ratio', 0):.2f}"
+    )
+
+
+def test_fund_benchmark_api():
+    """测试基金基准对比API"""
+    from server.app import create_app
+
+    app = create_app()
+    client = app.test_client()
+
+    resp = client.get("/api/fund/benchmark/000311")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    print(
+        f"✅ 基准对比API响应: {list(data.keys())[:5] if isinstance(data, dict) else 'error'}"
+    )
+
+
+def test_fund_holdings_api():
+    """测试基金持仓API"""
+    from server.app import create_app
+
+    app = create_app()
+    client = app.test_client()
+
+    resp = client.get("/api/fund/holdings/000311")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data.get("code") == 0
+    assert "holdings" in data.get("data", {})
+    holdings = data["data"]["holdings"]
+    assert len(holdings) > 0
+    print(f"✅ 持仓数据: {len(holdings)}只股票")
+    if holdings:
+        print(f"   第一大: {holdings[0]['stock_name']} {holdings[0]['hold_ratio']}%")
 
 
 def test_api_and_delete():
@@ -758,6 +911,7 @@ def run_all_tests():
 
     tests = [
         ("基金列表", test_fund_list),
+        ("基金列表含净值", test_fund_list_with_nav),
         ("基金净值", test_fund_nav),
         ("净值日期范围", test_fund_nav_with_date_range),
         ("最新净值", test_latest_nav),
@@ -774,6 +928,13 @@ def run_all_tests():
         ("API基金详情", test_api_fund_detail),
         ("API添加基金", test_api_fund_add),
         ("API添加后删除", test_api_and_delete),
+        ("基金持仓数据", test_fund_holdings),
+        ("行业标签推断", test_fund_industry_tags),
+        ("添加基金自动分析", test_fund_auto_analyze),
+        ("基金列表标签", test_fund_list_with_tags),
+        ("基金业绩指标API", test_fund_indicators_api),
+        ("基金基准对比API", test_fund_benchmark_api),
+        ("基金持仓API", test_fund_holdings_api),
         ("市场情绪API", test_market_sentiment_api),
         ("资金流向API", test_market_money_flow_api),
         ("市场情绪(days)", test_market_sentiment_with_days),

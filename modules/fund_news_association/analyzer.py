@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from modules.fund_industry import FundIndustryRepo
-from modules.news_classification import ClassificationRepo
+from modules.news_classification import ClassificationRepo, get_industry_code
 from modules.fund_news_association.interfaces import (
     FundNewsAssociation,
     FundNewsSummary,
@@ -26,11 +26,14 @@ class FundNewsMatcher:
         if not fund_industries:
             return []
 
-        industry_codes = [
-            ind["industry_code"]
-            for ind in fund_industries
-            if ind.get("confidence", 0) >= min_confidence * 100
-        ]
+        industry_codes = []
+        for ind in fund_industries:
+            if ind.get("confidence", 0) >= min_confidence * 100:
+                code = ind.get("industry_code")
+                if code:
+                    industry_codes.append(code)
+                else:
+                    industry_codes.append(get_industry_code(ind.get("industry", "")))
 
         if not industry_codes:
             return []

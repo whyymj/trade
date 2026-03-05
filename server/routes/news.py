@@ -3,11 +3,15 @@
 新闻相关 API 路由
 """
 
+import logging
+
 from flask import Blueprint, jsonify, request
 from datetime import datetime
 
 from data.news import NewsCrawler, NewsRepo
 from analysis.llm import get_analyzer
+
+logger = logging.getLogger(__name__)
 
 news_bp = Blueprint("news", __name__, url_prefix="/api/news")
 
@@ -43,6 +47,7 @@ def get_news_detail(news_id):
     )
 
 
+@news_bp.route("/list", methods=["GET"])
 def get_news_list():
     """获取新闻列表"""
     days = request.args.get("days", 1, type=int)
@@ -138,6 +143,7 @@ def analyze_news():
     news_list = repo.get_news(days=days, limit=50)
 
     news_dicts = []
+    news_ids = []
     for news in news_list:
         news_dicts.append(
             {
@@ -150,6 +156,8 @@ def analyze_news():
                 "category": news.category,
             }
         )
+        if hasattr(news, "id"):
+            news_ids.append(news.id)
 
     analyzer = get_analyzer()
     result = analyzer.analyze(news_dicts, use_deepseek=use_deepseek)
@@ -169,6 +177,9 @@ def analyze_news():
             },
         )()
     )
+
+    if result.get("industry_tags") and news_ids:
+        repo.update_news_industry_tags(news_ids, result["industry_tags"])
 
     return jsonify({"code": 0, "data": result})
 

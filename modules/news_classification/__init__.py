@@ -4,6 +4,8 @@ from modules.news_classification.interfaces import (
     ClassifiedNews,
     IndustryClassification,
     INDUSTRY_CATEGORIES,
+    get_industry_code,
+    get_industry_by_code,
 )
 
 __all__ = [
@@ -14,4 +16,6 @@ __all__ = [
     "ClassifiedNews",
     "IndustryClassification",
     "INDUSTRY_CATEGORIES",
+    "get_industry_code",
+    "get_industry_by_code",
 ]

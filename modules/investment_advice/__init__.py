@@ -108,7 +108,7 @@ class InvestmentAdvisor:
 - 关键因素要与新闻和行业相关"""
 
         try:
-            response = self.llm.chat(prompt)
+            response = self.llm.chat([{"role": "user", "content": prompt}])
             return self._parse_advice_response(response)
         except Exception as e:
             print(f"[InvestmentAdvisor] generate advice error: {e}")

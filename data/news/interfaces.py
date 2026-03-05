@@ -5,7 +5,7 @@
 
 from abc import ABC, abstractmethod
 from typing import List, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, date
 
 
@@ -20,6 +20,7 @@ class NewsItem:
     published_at: datetime
     category: str = "general"
     news_date: date = None
+    id: Optional[int] = field(default=None)
 
     def __post_init__(self):
         if self.news_date is None:

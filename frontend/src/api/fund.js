@@ -19,6 +19,8 @@ export function getFundList(params = {}) {
   if (params.page) query.set('page', String(params.page))
   if (params.size) query.set('size', String(params.size))
   if (params.fund_type) query.set('fund_type', params.fund_type)
+  if (params.keyword) query.set('keyword', params.keyword)
+  if (params.industry_tag) query.set('industry_tag', params.industry_tag)
   return request('/api/fund/list?' + query.toString())
 }
 
@@ -114,6 +116,10 @@ export function getLlmAnalysis(code, type) {
 
 export function getLlmStatus() {
   return request('/api/fund/llm-status')
+}
+
+export function getFundHoldings(code) {
+  return request(`/api/fund/holdings/${code}`)
 }
 
 export function syncFunds(fundCodes = []) {

@@ -3,12 +3,16 @@
 新闻仓储模块 - 支持去重、按日存储、自动清理
 """
 
+import json
+import logging
 from datetime import date, datetime
 from typing import List, Optional
 from dataclasses import asdict
 
 from data.mysql import execute, fetch_all, fetch_one, run_connection
 from .interfaces import NewsItem, AnalysisResult
+
+logger = logging.getLogger(__name__)
 
 
 class NewsRepo:
@@ -51,7 +55,7 @@ class NewsRepo:
         try:
             return run_connection(_insert)
         except Exception as e:
-            print(f"[NewsRepo] save_news error: {e}")
+            logger.error("save_news error: %s", e)
             return 0
 
     def get_news(
@@ -87,6 +91,7 @@ class NewsRepo:
                 published_at=row.get("published_at"),
                 category=row.get("category", "general"),
                 news_date=row.get("news_date"),
+                id=row.get("id"),
             )
             news_list.append(news)
 
@@ -113,6 +118,7 @@ class NewsRepo:
                 published_at=row.get("published_at"),
                 category=row.get("category", "general"),
                 news_date=row.get("news_date"),
+                id=row.get("id"),
             )
             news_list.append(news)
 
@@ -142,6 +148,7 @@ class NewsRepo:
             url=row.get("url", ""),
             published_at=published_at,
             category=row.get("category", "general"),
+            id=row.get("id"),
         )
 
     def get_news_count(self, days: int = 1) -> int:
@@ -165,10 +172,10 @@ class NewsRepo:
 
         try:
             n = execute(sql, (keep_days,))
-            print(f"[NewsRepo] Cleaned {n} old news")
+            logger.info("Cleaned %d old news", n)
             return n
         except Exception as e:
-            print(f"[NewsRepo] cleanup error: {e}")
+            logger.error("cleanup error: %s", e)
             return 0
 
     def save_analysis(self, result: AnalysisResult) -> bool:
@@ -201,7 +208,7 @@ class NewsRepo:
             )
             return True
         except Exception as e:
-            print(f"[NewsRepo] save_analysis error: {e}")
+            logger.error("save_analysis error: %s", e)
             return False
 
     def get_latest_analysis(self) -> Optional[AnalysisResult]:
@@ -230,6 +237,27 @@ class NewsRepo:
             analyzed_at=row.get("analysis_date", datetime.now()),
         )
 
+    def update_news_industry_tags(self, news_ids: list, industry_tags: list) -> bool:
+        """更新新闻的行业标签"""
+        if not news_ids or not industry_tags:
+            return False
+
+        tags_json = json.dumps(industry_tags, ensure_ascii=False)
+
+        placeholders = ",".join(["%s"] * len(news_ids))
+        sql = f"""
+        UPDATE news_data 
+        SET industry_tags = %s 
+        WHERE id IN ({placeholders})
+        """
+
+        try:
+            execute(sql, (tags_json, *news_ids))
+            return True
+        except Exception as e:
+            logger.error("update_news_industry_tags error: %s", e)
+            return False
+
     def get_categories(self) -> List[dict]:
         """获取分类统计"""
         sql = """
@@ -243,8 +271,6 @@ class NewsRepo:
         rows = fetch_all(sql)
         return [{"category": r.get("category"), "count": r.get("cnt")} for r in rows]
 
-
-import json
 
 
 def get_repo() -> NewsRepo:

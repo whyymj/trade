@@ -3,7 +3,11 @@
 市场数据相关 API 路由
 """
 
+import logging
+
 from flask import Blueprint, jsonify, request
+
+logger = logging.getLogger(__name__)
 
 from data.market import MarketCrawler, MarketRepo
 
@@ -288,7 +292,7 @@ def sync_market():
         if macro_df is not None and not macro_df.empty:
             saved["macro_data"] = repo.save_macro_data(macro_df)
     except Exception as e:
-        print(f"[Market API] sync macro error: {e}")
+        logger.error("sync macro error: %s", e)
         saved["macro_data"] = 0
 
     try:
@@ -296,7 +300,7 @@ def sync_market():
         if global_df is not None and not global_df.empty:
             saved["global_macro"] = repo.save_global_macro(global_df)
     except Exception as e:
-        print(f"[Market API] sync global error: {e}")
+        logger.error("sync global error: %s", e)
         saved["global_macro"] = 0
 
     return jsonify(

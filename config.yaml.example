@@ -1,0 +1,19 @@
+start_date: ''
+end_date: ''
+adjust: qfq
+mysql:
+  host: 127.0.0.1
+  port: 3306
+  user: root
+  password: <YOUR_DB_PASSWORD>
+  database: trade_cache
+  charset: utf8mb4
+stocks:
+- '601212'
+- 000901
+- '300024'
+- '688256'
+- '688158'
+- 09678.HK
+- '300785'
+output_dir: data

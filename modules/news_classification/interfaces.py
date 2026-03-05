@@ -197,3 +197,19 @@ INDUSTRY_CATEGORIES = [
         ],
     },
 ]
+
+
+def get_industry_code(industry_name: str) -> str:
+    """根据行业名称获取行业代码"""
+    for cat in INDUSTRY_CATEGORIES:
+        if cat["name"] == industry_name:
+            return cat["code"]
+    return "I000"
+
+
+def get_industry_by_code(industry_code: str) -> Optional[dict]:
+    """根据行业代码获取行业信息"""
+    for cat in INDUSTRY_CATEGORIES:
+        if cat["code"] == industry_code:
+            return cat
+    return None

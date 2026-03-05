@@ -86,6 +86,7 @@ class NewsAnalyzer:
                 "market_impact": "neutral",
                 "key_events": [],
                 "investment_advice": "暂无建议",
+                "industry_tags": [],
             }
 
         summary = self.extract_key_info(news_list)
@@ -93,6 +94,7 @@ class NewsAnalyzer:
         deep_analysis = ""
         market_impact = "neutral"
         investment_advice = ""
+        industry_tags = []
 
         llm = self.deepseek if use_deepseek else self.minimax
 
@@ -104,6 +106,9 @@ class NewsAnalyzer:
 请按以下格式输出：
 ## 市场判断
 [看涨/看跌/中性] - 简要说明
+
+## 行业标签
+[提取新闻涉及的主要行业，如：新能源、半导体、医药、白酒、银行等，用逗号分隔，最多5个]
 
 ## 原因分析
 1. 宏观层面：xxx
@@ -117,7 +122,18 @@ class NewsAnalyzer:
 [需要注意的风险]
 """
             try:
-                deep_analysis = llm.chat([{"role": "user", "content": prompt}])
+                result = llm.chat([{"role": "user", "content": prompt}])
+
+                deep_analysis = result
+
+                import re
+
+                industry_match = re.search(r"##\s*行业标签\s*\n?([^\n#]+)", result)
+                if industry_match:
+                    tags_str = industry_match.group(1).strip()
+                    industry_tags = [
+                        t.strip() for t in tags_str.split(",") if t.strip()
+                    ]
 
                 if "看涨" in deep_analysis or "利好" in deep_analysis:
                     market_impact = "bullish"
@@ -150,6 +166,7 @@ class NewsAnalyzer:
             "market_impact": market_impact,
             "key_events": key_events,
             "investment_advice": investment_advice,
+            "industry_tags": industry_tags,
             "analyzed_at": datetime.now().isoformat(),
         }
 

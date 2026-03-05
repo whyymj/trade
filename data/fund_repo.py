@@ -55,10 +55,11 @@ def get_fund_list(
     size: int = 20,
     fund_type: Optional[str] = None,
     watchlist_only: bool = False,
+    industry_tag: Optional[str] = None,
 ) -> dict[str, Any]:
     """
     获取基金列表，分页返回。
-    支持按基金类型筛选、仅返回关注列表。
+    支持按基金类型筛选、仅返回关注列表、按行业标签筛选。
     """
     page = max(1, page)
     size = max(1, min(100, size))
@@ -69,13 +70,16 @@ def get_fund_list(
         args.append(fund_type)
     if watchlist_only:
         conditions.append("watchlist = 1")
+    if industry_tag:
+        conditions.append("JSON_CONTAINS(industry_tags, %s)")
+        args.append(f'"{industry_tag}"')
     where = " AND ".join(conditions) if conditions else "1=1"
     count_sql = f"SELECT COUNT(*) AS cnt FROM fund_meta WHERE {where}"
     row = fetch_one(count_sql, tuple(args))
     total = int(row["cnt"]) if row else 0
     offset = (page - 1) * size
     data_sql = f"""
-    SELECT fund_code, fund_name, fund_type, manager, establishment_date, fund_scale, watchlist
+    SELECT fund_code, fund_name, fund_type, manager, establishment_date, fund_scale, watchlist, industry_tags, analysis_status
     FROM fund_meta
     WHERE {where}
     ORDER BY fund_code
@@ -88,6 +92,19 @@ def get_fund_list(
             r["establishment_date"] = str(r["establishment_date"])
         if r.get("fund_scale"):
             r["fund_scale"] = float(r["fund_scale"])
+        if r.get("industry_tags"):
+            import json
+
+            try:
+                r["industry_tags"] = (
+                    json.loads(r["industry_tags"])
+                    if isinstance(r["industry_tags"], str)
+                    else r["industry_tags"]
+                )
+            except:
+                r["industry_tags"] = []
+        else:
+            r["industry_tags"] = []
     return {"total": total, "page": page, "page_size": size, "data": rows}
 
 
@@ -280,3 +297,44 @@ def search_funds(keyword: str, limit: int = 10) -> list[dict[str, Any]]:
     pattern = f"%{keyword}%"
     rows = fetch_all(sql, (pattern, pattern, limit))
     return rows
+
+
+def update_fund_industry_tags(fund_code: str, industry_tags: list[str]) -> bool:
+    """更新基金行业标签"""
+    fund_code = (fund_code or "").strip()
+    if not fund_code:
+        return False
+    import json
+
+    tags_json = json.dumps(industry_tags, ensure_ascii=False)
+    execute(
+        "UPDATE fund_meta SET industry_tags = %s, updated_at = CURRENT_TIMESTAMP WHERE fund_code = %s",
+        (tags_json, fund_code),
+    )
+    get_cache().delete("fund_list")
+    return True
+
+
+def update_fund_llm_analysis(fund_code: str, analysis: str) -> bool:
+    """更新基金LLM分析结果"""
+    fund_code = (fund_code or "").strip()
+    if not fund_code:
+        return False
+    execute(
+        "UPDATE fund_meta SET llm_analysis = %s, analysis_status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE fund_code = %s",
+        (analysis, fund_code),
+    )
+    get_cache().delete("fund_list")
+    return True
+
+
+def update_fund_analysis_status(fund_code: str, status: str) -> bool:
+    """更新基金分析状态"""
+    fund_code = (fund_code or "").strip()
+    if not fund_code:
+        return False
+    execute(
+        "UPDATE fund_meta SET analysis_status = %s, updated_at = CURRENT_TIMESTAMP WHERE fund_code = %s",
+        (status, fund_code),
+    )
+    return True

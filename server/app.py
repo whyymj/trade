@@ -8,6 +8,7 @@ Flask 应用工厂：创建 app、注册蓝图、配置静态与 SPA 回退。
 """
 
 import atexit
+import logging
 import math
 from pathlib import Path
 
@@ -43,7 +44,7 @@ def _sync_all_funds():
                 pass
         print(f"[定时任务] 基金数据同步完成: {success}/{len(fund_codes)}")
     except Exception as e:
-        print(f"[定时任务] 基金数据同步失败: {e}")
+        logging.error("定时任务-基金数据同步失败: %s", e)
 
 
 def _auto_train_watchlist():
@@ -58,7 +59,7 @@ def _auto_train_watchlist():
         total = len(result.get("results", []))
         print(f"[定时任务] LSTM自动训练完成: {success}/{total}")
     except Exception as e:
-        print(f"[定时任务] LSTM自动训练失败: {e}")
+        logging.error("定时任务-LSTM自动训练失败: %s", e)
 
 
 scheduler = BackgroundScheduler()
@@ -106,8 +107,8 @@ def create_app(static_folder=None):
         from data.schema import create_all_tables
 
         create_all_tables()
-    except Exception:
-        pass
+    except Exception as e:
+        logging.critical("数据库表初始化失败: %s", e)
 
     if not scheduler.running:
         scheduler.start()

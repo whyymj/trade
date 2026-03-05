@@ -1,8 +1,17 @@
 <template>
   <div class="page-container">
-    <h1 class="page-title">基金列表</h1>
+    <div class="page-header">
+      <h1 class="page-title">基金列表</h1>
+      <div class="header-actions">
+        <button class="icon-btn" @click="goToPredict" title="预测中心">🎯</button>
+        <button class="icon-btn" @click="goToNews" title="财经新闻">📰</button>
+        <button class="icon-btn" @click="goToMarket" title="市场数据">📊</button>
+        <button class="icon-btn" @click="goToFundIndustry" title="行业分析">🏭</button>
+        <button class="icon-btn" @click="goToFundNews" title="新闻关联">🔗</button>
+      </div>
+    </div>
     
-    <div class="search-bar">
+    <div class="search-row">
       <input 
         v-model="searchKeyword" 
         class="input" 
@@ -11,29 +20,25 @@
       />
       <button class="btn btn-primary" @click="handleSearch">搜索</button>
       <button class="btn btn-success" @click="showAddModal = true">+ 添加基金</button>
-      <button class="btn" style="background: #409eff; color: white;" @click="goToPredict">🎯 预测</button>
-      <button class="btn" style="background: #e6a23c; color: white;" @click="goToNews">📰 新闻</button>
-      <button class="btn" style="background: #9c27b0; color: white;" @click="goToMarket">📊 市场</button>
-      <button class="btn" style="background: #00bcd4; color: white;" @click="goToFundIndustry">🏭 行业</button>
-      <button class="btn" style="background: #ff9800; color: white;" @click="goToFundNews">🔗 关联</button>
     </div>
     
-    <div class="filter-bar">
+    <div class="filter-row">
+      <span class="filter-label">行业:</span>
       <button 
-        class="filter-btn" 
-        :class="{ active: currentType === '' }"
-        @click="filterByType('')"
+        class="filter-tag" 
+        :class="{ active: currentIndustryTag === '' }"
+        @click="filterByIndustry('')"
       >
         全部
       </button>
       <button 
-        v-for="type in fundTypes" 
-        :key="type"
-        class="filter-btn"
-        :class="{ active: currentType === type }"
-        @click="filterByType(type)"
+        v-for="tag in allIndustryTags" 
+        :key="tag"
+        class="filter-tag"
+        :class="{ active: currentIndustryTag === tag }"
+        @click="filterByIndustry(tag)"
       >
-        {{ type }}
+        {{ tag }}
       </button>
     </div>
     
@@ -46,36 +51,46 @@
         class="card fund-card"
         @click="goToDetail(fund.fund_code)"
       >
-        <div class="fund-name">{{ fund.fund_name }}</div>
-        <div class="fund-code">{{ fund.fund_code }}</div>
-        <div class="fund-type">{{ fund.fund_type || '混合型' }}</div>
-        <div class="flex-between">
-          <div>
-            <span class="fund-nav">{{ fund.latest_nav?.toFixed(4) || '--' }}</span>
-            <span 
-              class="fund-change"
-              :class="(fund.daily_return || 0) >= 0 ? 'positive' : 'negative'"
-            >
-              {{ (fund.daily_return || 0) >= 0 ? '+' : '' }}{{ (fund.daily_return || 0).toFixed(2) }}%
-            </span>
-          </div>
-          <div>
-            <button 
-              class="btn btn-outline" 
-              style="padding: 6px 12px; font-size: 12px;"
-              @click.stop="toggleWatch(fund)"
-            >
-              {{ fund.watchlist ? '★' : '☆' }}
-            </button>
-            <button 
-              class="btn btn-danger" 
-              style="padding: 6px 12px; font-size: 12px; margin-left: 8px;"
-              @click.stop="handleDelete(fund.fund_code)"
-            >
-              删除
-            </button>
-          </div>
+        <div class="fund-card-header">
+          <div class="fund-name">{{ fund.fund_name }}</div>
+          <button 
+            class="star-btn" 
+            @click.stop="toggleWatch(fund)"
+          >
+            {{ fund.watchlist ? '★' : '☆' }}
+          </button>
         </div>
+        <div class="fund-code">{{ fund.fund_code }}</div>
+        
+        <div class="fund-tags">
+          <span class="tag tag-primary">{{ fund.fund_type || '混合型' }}</span>
+          <span 
+            v-for="tag in (fund.industry_tags || []).slice(0, 2)" 
+            :key="tag" 
+            class="tag tag-secondary"
+          >
+            {{ tag }}
+          </span>
+          <span v-if="fund.analysis_status === 'analyzing'" class="tag tag-warning">分析中...</span>
+        </div>
+        
+        <div class="fund-price">
+          <span class="nav-value">{{ fund.latest_nav?.toFixed(4) || '--' }}</span>
+          <span 
+            class="change-value"
+            :class="(fund.daily_return || 0) >= 0 ? 'positive' : 'negative'"
+          >
+            {{ (fund.daily_return || 0) >= 0 ? '+' : '' }}{{ (fund.daily_return || 0).toFixed(2) }}%
+          </span>
+        </div>
+        
+        <button 
+          class="btn btn-danger btn-sm"
+          style="width: 100%; margin-top: 8px;"
+          @click.stop="handleDelete(fund.fund_code)"
+        >
+          删除
+        </button>
       </div>
     </div>
     
@@ -100,19 +115,38 @@
     <div v-if="showAddModal" class="modal-overlay" @click.self="showAddModal = false">
       <div class="modal-content">
         <h3 class="modal-title">添加基金</h3>
-        <div class="form-group">
+        
+        <div v-if="addProgress.length > 0" class="progress-list">
+          <div 
+            v-for="(item, idx) in addProgress" 
+            :key="idx"
+            class="progress-item"
+            :class="item.status"
+          >
+            <span class="progress-icon">
+              {{ item.status === 'pending' ? '⏳' : item.status === 'loading' ? '🔄' : item.status === 'success' ? '✅' : '❌' }}
+            </span>
+            <span class="progress-text">{{ item.message }}</span>
+          </div>
+        </div>
+        
+        <div v-else class="form-group">
           <label class="form-label">基金代码（多个用逗号/空格/换行分隔）</label>
           <textarea v-model="fundCodesInput" class="input" rows="4" placeholder="如: 000311, 161039, 270023"></textarea>
         </div>
+        
         <div class="modal-actions">
-          <button class="btn btn-outline" @click="showAddModal = false">取消</button>
-          <button class="btn btn-primary" @click="handleAddBatch" :disabled="addLoading">
-            {{ addLoading ? '添加中...' : '添加' }}
+          <button class="btn btn-outline" @click="closeAddModal" :disabled="addLoading">
+            {{ addLoading ? '分析中...' : '关闭' }}
           </button>
-        </div>
-        <div v-if="addResult" style="margin-top: 12px; font-size: 13px;">
-          <span v-if="addResult.success > 0" style="color: green;">成功添加 {{ addResult.success }} 个基金</span>
-          <span v-if="addResult.failed > 0" style="color: red; margin-left: 10px;">失败 {{ addResult.failed }} 个</span>
+          <button 
+            v-if="addProgress.length === 0"
+            class="btn btn-primary" 
+            @click="handleAddBatch" 
+            :disabled="addLoading"
+          >
+            {{ addLoading ? '添加中...' : '添加并自动分析' }}
+          </button>
         </div>
       </div>
     </div>
@@ -120,8 +154,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { getFundList, addFund, deleteFund, watchFund, getLatestNav } from '@/api/fund'
 
 const router = useRouter()
@@ -131,20 +166,19 @@ const page = ref(1)
 const size = ref(20)
 const total = ref(0)
 const searchKeyword = ref('')
-const currentType = ref('')
+const currentIndustryTag = ref('')
 const showAddModal = ref(false)
 const fundCodesInput = ref('')
 const addLoading = ref(false)
-const addResult = ref(null)
+const addProgress = ref([])
 const funds = ref([])
 
-const fundTypes = ['股票型', '混合型', '债券型', '指数型', '货币型']
-
-watch(showAddModal, (val) => {
-  if (val) {
-    fundCodesInput.value = ''
-    addResult.value = null
-  }
+const allIndustryTags = computed(() => {
+  const tags = new Set()
+  funds.value.forEach(f => {
+    (f.industry_tags || []).forEach(t => tags.add(t))
+  })
+  return Array.from(tags).slice(0, 10)
 })
 
 onMounted(() => {
@@ -159,34 +193,27 @@ async function loadFunds() {
     const params = {
       page: page.value,
       size: size.value,
-      fund_type: currentType.value || undefined
+      keyword: searchKeyword.value || undefined,
+      industry_tag: currentIndustryTag.value || undefined
     }
     const res = await getFundList(params)
     const list = res.data || []
     
+    // 先显示列表，不等待净值数据
+    funds.value = list
+    total.value = res.total || 0
+    totalPages.value = Math.ceil(total.value / size.value)
+    
+    // 然后异步获取净值
     for (const fund of list) {
-      if (searchKeyword.value) {
-        const kw = searchKeyword.value.toLowerCase()
-        if (!fund.fund_code.toLowerCase().includes(kw) && 
-            !fund.fund_name.toLowerCase().includes(kw)) {
-          continue
-        }
-      }
       try {
         const navRes = await getLatestNav(fund.fund_code)
         fund.latest_nav = navRes.unit_nav
         fund.daily_return = navRes.daily_return ? navRes.daily_return * 100 : 0
       } catch (e) {
-        fund.latest_nav = null
-        fund.daily_return = 0
+        console.warn(`获取 ${fund.fund_code} 净值失败:`, e.message)
       }
     }
-    
-    funds.value = searchKeyword.value 
-      ? list.filter(f => f.fund_code.includes(searchKeyword.value) || f.fund_name.includes(searchKeyword.value))
-      : list
-    total.value = res.total || 0
-    totalPages.value = Math.ceil(total.value / size.value)
   } catch (e) {
     console.error('加载基金列表失败:', e)
   } finally {
@@ -199,8 +226,8 @@ function handleSearch() {
   loadFunds()
 }
 
-function filterByType(type) {
-  currentType.value = type
+function filterByIndustry(tag) {
+  currentIndustryTag.value = tag
   page.value = 1
   loadFunds()
 }
@@ -214,79 +241,67 @@ function goToDetail(code) {
   router.push(`/fund/${code}`)
 }
 
-function goToPredict() {
-  router.push('/predict')
-}
-
-function goToNews() {
-  router.push('/news')
-}
-
-function goToMarket() {
-  router.push('/market')
-}
-
-function goToFundIndustry() {
-  router.push('/fund-industry')
-}
-
-function goToFundNews() {
-  router.push('/fund-news')
-}
+function goToPredict() { router.push('/predict') }
+function goToNews() { router.push('/news') }
+function goToMarket() { router.push('/market') }
+function goToFundIndustry() { router.push('/fund-industry') }
+function goToFundNews() { router.push('/fund-news') }
 
 async function handleAddBatch() {
   const input = fundCodesInput.value.trim()
   if (!input) {
-    alert('请输入基金代码')
+    ElMessage.warning('请输入基金代码')
     return
   }
   
-  // 解析基金代码：支持逗号、空格、换行分隔
   const codes = input.split(/[,，\s\n]+/).map(c => c.trim()).filter(c => c)
   
   if (codes.length === 0) {
-    alert('请输入有效的基金代码')
+    ElMessage.warning('请输入有效的基金代码')
     return
   }
   
   addLoading.value = true
-  addResult.value = null
-  
-  let success = 0
-  let failed = 0
+  addProgress.value = []
   
   for (const code of codes) {
+    addProgress.value.push({ message: `添加基金 ${code}...`, status: 'loading' })
+    
     try {
       await addFund({ fund_code: code })
-      success++
+      addProgress.value[addProgress.value.length - 1] = { message: `✅ ${code} 添加成功，正在分析行业标签...`, status: 'success' }
     } catch (e) {
-      failed++
-      console.error(`添加 ${code} 失败:`, e)
+      addProgress.value[addProgress.value.length - 1] = { message: `❌ ${code} 添加失败: ${e.message}`, status: 'error' }
     }
   }
   
-  addResult.value = { success, failed }
   addLoading.value = false
   
-  if (success > 0) {
-    fundCodesInput.value = ''
-    await loadFunds()
-  }
+  setTimeout(() => {
+    closeAddModal()
+    loadFunds()
+  }, 1500)
+}
+
+function closeAddModal() {
+  showAddModal.value = false
+  addProgress.value = []
+  fundCodesInput.value = ''
 }
 
 async function handleDelete(code) {
-  console.log('handleDelete called, code:', code)
-  if (!confirm('确定要删除该基金吗?')) return
+  try {
+    await ElMessageBox.confirm('确定要删除该基金吗?', '确认删除', { type: 'warning' })
+  } catch {
+    return
+  }
   
   try {
-    console.log('Sending DELETE request for:', code)
-    const res = await deleteFund(code)
-    console.log('Response:', res)
-    alert('删除成功: ' + JSON.stringify(res))
+    await deleteFund(code)
+    ElMessage.success('删除成功')
     await loadFunds()
   } catch (e) {
-    console.error('Error:', e)
-    alert('删除失败: ' + e.message)
+    ElMessage.error('删除失败: ' + e.message)
   }
 }
 
@@ -295,11 +310,157 @@ async function toggleWatch(fund) {
     await watchFund(fund.fund_code, !fund.watchlist)
     fund.watchlist = !fund.watchlist
   } catch (e) {
-    alert('操作失败: ' + e.message)
+    ElMessage.error('操作失败: ' + e.message)
   }
 }
-
-onMounted(() => {
-  loadFunds()
-})
 </script>
+
+<style scoped>
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.icon-btn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  cursor: pointer;
+  font-size: 18px;
+  transition: all 0.2s;
+}
+
+.icon-btn:hover {
+  background: var(--primary);
+  transform: scale(1.1);
+}
+
+.search-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.search-row .input {
+  flex: 1;
+  max-width: 400px;
+}
+
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.filter-label {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.filter-tag {
+  padding: 4px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  background: white;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.filter-tag:hover {
+  border-color: var(--primary);
+}
+
+.filter-tag.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.fund-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.star-btn {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #f5c842;
+}
+
+.fund-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 8px 0;
+}
+
+.fund-price {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.nav-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.change-value {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.progress-list {
+  max-height: 300px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+
+.progress-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+
+.progress-item.loading {
+  background: #f0f9ff;
+}
+
+.progress-item.success {
+  background: #f6ffed;
+}
+
+.progress-item.error {
+  background: #fff2f0;
+}
+
+.progress-icon {
+  font-size: 14px;
+}
+</style>

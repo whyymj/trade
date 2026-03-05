@@ -362,13 +362,39 @@ def create_fund_meta_table() -> None:
         establishment_date DATE DEFAULT NULL,
         fund_scale DECIMAL(20,2) DEFAULT NULL,
         watchlist TINYINT(1) DEFAULT 0,
+        industry_tags JSON DEFAULT NULL,
+        llm_analysis TEXT DEFAULT NULL,
+        analysis_status VARCHAR(16) DEFAULT 'pending',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         KEY idx_watchlist (watchlist),
-        KEY idx_fund_type (fund_type)
+        KEY idx_fund_type (fund_type),
+        KEY idx_analysis_status (analysis_status)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """
     execute(sql)
+
+
+def migrate_fund_meta_tags() -> None:
+    """为已存在的 fund_meta 表增加 industry_tags 和 llm_analysis 列"""
+    try:
+        execute("ALTER TABLE fund_meta ADD COLUMN industry_tags JSON DEFAULT NULL")
+    except Exception:
+        pass
+    try:
+        execute("ALTER TABLE fund_meta ADD COLUMN llm_analysis TEXT DEFAULT NULL")
+    except Exception:
+        pass
+    try:
+        execute(
+            "ALTER TABLE fund_meta ADD COLUMN analysis_status VARCHAR(16) DEFAULT 'pending'"
+        )
+    except Exception:
+        pass
+    try:
+        execute("ALTER TABLE fund_meta ADD KEY idx_analysis_status (analysis_status)")
+    except Exception:
+        pass
 
 
 def create_fund_nav_table() -> None:
@@ -444,6 +470,7 @@ def create_fund_model_table() -> None:
 def create_fund_tables() -> None:
     """创建基金相关全部表（幂等）"""
     create_fund_meta_table()
+    migrate_fund_meta_tags()
     create_fund_nav_table()
     create_index_data_table()
     create_fund_prediction_table()
@@ -467,6 +494,7 @@ def create_news_data_table() -> None:
         category VARCHAR(32) DEFAULT 'general',
         sentiment VARCHAR(16) DEFAULT 'neutral',
         importance TINYINT DEFAULT 0,
+        industry_tags JSON DEFAULT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE KEY uk_url (url),
         KEY idx_news_date (news_date),
@@ -475,6 +503,14 @@ def create_news_data_table() -> None:
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """
     execute(sql)
+
+
+def migrate_news_data_tags() -> None:
+    """为已存在的 news_data 表增加 industry_tags 列"""
+    try:
+        execute("ALTER TABLE news_data ADD COLUMN industry_tags JSON DEFAULT NULL")
+    except Exception:
+        pass
 
 
 def create_news_analysis_table() -> None:
@@ -577,6 +613,7 @@ def create_global_macro_table() -> None:
 def create_news_tables() -> None:
     """创建新闻相关全部表"""
     create_news_data_table()
+    migrate_news_data_tags()
     create_news_analysis_table()
     create_news_industry_classification_table()
     create_fund_news_association_table()

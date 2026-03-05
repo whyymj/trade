@@ -2,3 +2,21 @@
 data/mysql.log
 logs/
 .trade_cache_dump.sql
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+
+# Testing
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build
+frontend/dist/

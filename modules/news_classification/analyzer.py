@@ -47,7 +47,7 @@ class NewsClassifier:
 只返回 JSON，不要其他内容。"""
 
         try:
-            response = self.llm.chat(prompt)
+            response = self.llm.chat([{"role": "user", "content": prompt}])
             result = self._parse_response(response)
             return result
         except Exception as e:
