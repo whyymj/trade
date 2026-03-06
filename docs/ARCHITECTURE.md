@@ -1,803 +1,466 @@
-# FundProphet 基金分析系统 - 架构设计文档
+# 项目功能模块与架构说明
 
-## 一、系统概述
-
-### 1.1 项目定位
-
-轻量级本地基金分析系统，支持基金净值查询、业绩分析、LSTM 净值预测、大模型智能分析。
-
-### 1.2 技术栈
-
-| 层级 | 技术 | 说明 |
-|------|------|------|
-| 后端 | Python Flask | 单进程开发服务器 |
-| 前端 | Vue3 + Vite + ECharts | 卡通风格界面 |
-| 数据库 | MySQL | 基金数据存储 |
-| 机器学习 | PyTorch | 简化版 LSTM 预测 |
-| 大模型 | MiniMax M2.5 | 智能分析（已配置） |
-| 缓存 | 内存缓存 | 无 Redis 依赖 |
-
-### 1.3 运行方式
-
-```bash
-# 启动后端
-python server.py
-
-# 启动前端
-cd frontend && pnpm run dev
-```
+> 基于当前代码实际状态编写，反映项目真实结构。
 
 ---
 
-## 二、目录结构
+## 一、项目定位
 
-```
-trade/
-├── config.yaml                 # 配置文件
-├── server.py                   # 启动入口
-├── requirements.txt            # 依赖
-│
-├── data/                       # 数据层
-│   ├── __init__.py
-│   ├── mysql.py               # MySQL 连接
-│   ├── schema.py              # 表结构
-│   ├── cache.py               # 内存缓存
-│   ├── fund_repo.py           # 基金数据仓储
-│   ├── fund_fetcher.py        # 基金数据抓取
-│   └── index_repo.py          # 指数数据仓储
-│
-├── analysis/                   # 分析模块
-│   ├── __init__.py
-│   ├── fund_data.py           # 基金数据处理
-│   ├── fund_metrics.py        # 基金指标计算
-│   ├── fund_benchmark.py      # 基准对比
-│   ├── fund_lstm.py           # LSTM 基金预测
-│   ├── fund_factor.py         # 多因子筛选
-│   ├── lstm_model.py          # LSTM 框架
-│   ├── factor_library.py      # 因子库
-│   ├── technical.py           # 技术指标
-│   ├── llm/                   # ★ 大模型分析
-│   │   ├── __init__.py
-│   │   └── client.py          # LLM 客户端
-│   └── utils.py               # 分析工具
-│
-├── server/                     # Web 层
-│   ├── __init__.py
-│   ├── app.py                 # Flask 应用
-│   ├── utils.py               # 通用工具
-│   ├── logging_config.py      # 日志
-│   ├── scheduler.py           # 定时任务
-│   └── routes/
-│       ├── __init__.py
-│       └── api.py             # API 路由
-│
-├── frontend/                   # 前端
-│   ├── src/
-│   │   ├── api/               # API 请求
-│   │   ├── components/        # 组件
-│   │   ├── views/             # 页面
-│   │   ├── stores/            # 状态管理
-│   │   ├── styles/            # 样式（卡通风格）
-│   │   ├── router/            # 路由
-│   │   ├── App.vue
-│   │   └── main.js
-│   └── package.json
-│
-└── docs/                      # 文档
-    └── ARCHITECTURE.md        # 本文档
-```
+本项目是一个**基金与股票数据分析平台**，集数据抓取、存储、展示、AI 分析于一体。
+
+- 前后端分离：Flask API 后端 + Vue3 前端
+- 数据存储：MySQL（持久化）+ SQLite（本地缓存）
+- AI 能力：LSTM 深度学习预测 + LLM 大模型分析
+- 部署方式：本地开发 / 生产一体 / Docker Compose
 
 ---
 
-## 三、模块设计
-
-### 3.1 数据层 `data/`
-
-#### 3.1.1 职责
-
-- 数据库连接管理
-- 基金/指数数据 CRUD
-- 数据抓取（天天基金网）
-- 内存缓存
-
-#### 3.1.2 核心文件
-
-| 文件 | 职责 |
-|------|------|
-| `mysql.py` | MySQL 连接池 |
-| `schema.py` | 表结构定义 |
-| `cache.py` | 内存缓存 |
-| `fund_repo.py` | 基金数据操作 |
-| `fund_fetcher.py` | 数据抓取 |
-| `index_repo.py` | 指数数据操作 |
-
-#### 3.1.3 数据表结构
-
-```sql
--- 基金基本信息
-CREATE TABLE fund_meta (
-    fund_code VARCHAR(10) PRIMARY KEY,
-    fund_name VARCHAR(128),
-    fund_type VARCHAR(32),
-    manager VARCHAR(128),
-    establishment_date DATE,
-    fund_scale DECIMAL(20,2),
-    watchlist TINYINT(1) DEFAULT 0,
-    ...
-);
-
--- 基金净值
-CREATE TABLE fund_nav (
-    fund_code VARCHAR(10),
-    nav_date DATE,
-    unit_nav DECIMAL(10,4),
-    accum_nav DECIMAL(10,4),
-    daily_return DECIMAL(10,4),
-    UNIQUE(fund_code, nav_date),
-    INDEX idx_code_date(fund_code, nav_date)
-);
-
--- 指数数据
-CREATE TABLE index_data (
-    index_code VARCHAR(20),
-    trade_date DATE,
-    close_price DECIMAL(10,2),
-    daily_return DECIMAL(10,4),
-    UNIQUE(index_code, trade_date)
-);
-
--- 预测记录
-CREATE TABLE fund_prediction (
-    fund_code VARCHAR(10),
-    predict_date DATE,
-    direction TINYINT,
-    magnitude DECIMAL(12,6),
-    prob_up DECIMAL(8,4),
-    UNIQUE(fund_code, predict_date)
-);
-
--- 模型存储
-CREATE TABLE fund_model (
-    fund_code VARCHAR(10) PRIMARY KEY,
-    model_data LONGBLOB
-);
-```
-
-### 3.2 分析层 `analysis/`
-
-#### 3.2.1 职责
-
-- 基金业绩指标计算
-- 基准对比分析
-- LSTM 净值预测
-- 多因子筛选
-- 大模型智能分析
-
-#### 3.2.2 模块关系
+## 二、整体架构
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     分析层模块关系图                           │
-├─────────────────────────────────────────────────────────────┤
+│                     前端 (Vue3 + Vite)                      │
+│  FundHome / FundDetail / FundPredict / FundIndustry         │
+│  NewsHome / NewsList / NewsAnalysis / NewsClassification     │
+│  MarketHome / FundNewsAssociation                           │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ HTTP /api/*
+┌──────────────────────────▼──────────────────────────────────┐
+│                     后端 (Flask)                            │
+│  server/app.py  ←  server/routes/*  ←  APScheduler 定时任务 │
 │                                                             │
-│  data/fund_repo ──────▶ fund_metrics ──────▶ fund_benchmark │
-│        │                                              │      │
-│        │                   │                          │      │
-│        ▼                   ▼                          ▼      │
-│  fund_data ──────▶ technical ──────▶ factor_library ──┘      │
-│        │                                              │      │
-│        │                   │                          │      │
-│        ▼                   ▼                          ▼      │
-│  fund_lstm ◀───────────────llm/client.py                    │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
-#### 3.2.3 核心模块
-
-| 模块 | 输入 | 输出 | 说明 |
-|------|------|------|------|
-| `fund_data.py` | 原始净值 DataFrame | 处理后 DataFrame | 数据清洗 |
-| `fund_metrics.py` | 净值序列 | 指标字典 | 收益率/夏普/回撤 |
-| `fund_benchmark.py` | 基金净值 + 指数 | 对比报告 | 基准对比 |
-| `fund_lstm.py` | 净值序列 | 预测结果 | LSTM 预测 |
-| `fund_factor.py` | 多基金数据 | 筛选结果 | 多因子筛选 |
-| `technical.py` | 净值序列 | 技术指标 | MACD/RSI |
-| `factor_library.py` | 净值 DataFrame | 因子 DataFrame | 因子计算 |
-| `llm/client.py` | 提示词 | 分析文本 | MiniMax API |
-
-### 3.3 Web 层 `server/`
-
-#### 3.3.1 职责
-
-- Flask 应用创建
-- API 路由定义
-- 请求响应处理
-- 定时任务调度
-
-#### 3.3.2 核心文件
-
-| 文件 | 职责 |
-|------|------|
-| `app.py` | Flask 应用工厂 |
-| `routes/api.py` | API 路由定义 |
-| `utils.py` | 通用工具函数 |
-| `scheduler.py` | 定时任务 |
-
-### 3.4 前端 `frontend/`
-
-#### 3.4.1 页面结构
-
-| 页面 | 路由 | 说明 |
-|------|------|------|
-| FundHome | `/` | 基金列表首页 |
-| FundDetail | `/fund/:code` | 基金详情 |
-| FundPredict | `/predict` | 预测中心 |
-| Settings | `/settings` | 设置 |
-
-#### 3.4.2 卡通风格
-
-```css
-:root {
-  --primary: #6C9BFF;      /* 可爱蓝 */
-  --secondary: #FF9ECD;    /* 糖果粉 */
-  --bg-primary: #FFF9F0;   /* 奶白 */
-  --success: #7ED957;
-  --danger: #FF6B6B;
-}
+│  api.py  news.py  market.py  fund_industry.py              │
+│  fund_news_association.py  news_classification.py           │
+│  investment_advice.py                                       │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+┌──────────────────────────▼──────────────────────────────────┐
+│                     数据层 (data/)                          │
+│  stock_repo / fund_repo / fund_fetcher / fund_holdings      │
+│  news / market / lstm_repo / index_repo / cache             │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+              ┌────────────┴────────────┐
+              ▼                         ▼
+┌─────────────────────┐   ┌─────────────────────────────────┐
+│       MySQL         │   │       分析层 (analysis/)         │
+│  stock_* / fund_*   │   │  时域 / 频域 / ARIMA / LSTM      │
+│  news_* / market_*  │   │  基金分析 / LLM / 综合报告       │
+└─────────────────────┘   └─────────────────────────────────┘
+                                        │
+                           ┌────────────▼────────────┐
+                           │    业务模块 (modules/)   │
+                           │  fund_industry           │
+                           │  fund_news_association   │
+                           │  news_classification     │
+                           │  investment_advice       │
+                           └─────────────────────────┘
 ```
 
 ---
 
-## 四、API 接口设计
-
-### 4.1 接口列表
-
-#### 基金列表
-
-| 方法 | 路径 | 说明 | 缓存 |
-|------|------|------|------|
-| GET | `/api/fund/list` | 基金列表 | 30分钟 |
-| GET | `/api/fund/watchlist` | 关注列表 | 5分钟 |
-| POST | `/api/fund/add` | 添加基金 | - |
-| DELETE | `/api/fund/<code>` | 删除基金 | - |
-| PUT | `/api/fund/<code>/watch` | 关注/取消 | - |
-
-#### 基金净值
-
-| 方法 | 路径 | 说明 | 缓存 |
-|------|------|------|------|
-| GET | `/api/fund/nav/<code>` | 净值历史 | 30分钟 |
-| GET | `/api/fund/nav/latest/<code>` | 最新净值 | 5分钟 |
-
-#### 基金分析
-
-| 方法 | 路径 | 说明 | 缓存 |
-|------|------|------|------|
-| GET | `/api/fund/indicators/<code>` | 业绩指标 | 1小时 |
-| GET | `/api/fund/benchmark/<code>` | 基准对比 | 1小时 |
-
-#### 基金预测
-
-| 方法 | 路径 | 说明 | 缓存 |
-|------|------|------|------|
-| POST | `/api/fund/predict` | 预测净值 | 5分钟 |
-| GET | `/api/fund/prediction/<code>` | 预测结果 | 5分钟 |
-| POST | `/api/fund/train` | 训练模型 | - |
-
-#### 大模型分析
-
-| 方法 | 路径 | 说明 | 缓存 |
-|------|------|------|------|
-| GET | `/api/fund/llm-status` | LLM 状态 | - |
-| GET | `/api/fund/analysis/profile/<code>` | 概况分析 | 24小时 |
-| GET | `/api/fund/analysis/performance/<code>` | 业绩归因 | 24小时 |
-| GET | `/api/fund/analysis/risk/<code>` | 风险评估 | 24小时 |
-| GET | `/api/fund/advice/<code>` | 投资建议 | 24小时 |
-| GET | `/api/fund/report/<code>` | 完整报告 | 24小时 |
-
-#### 指数数据
-
-| 方法 | 路径 | 说明 | 缓存 |
-|------|------|------|------|
-| GET | `/api/index/list` | 指数列表 | 1天 |
-| GET | `/api/index/data/<code>` | 指数数据 | 1小时 |
-
-#### 数据同步
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/sync/funds` | 同步基金数据 |
-| POST | `/api/sync/index` | 同步指数数据 |
-
-### 4.2 响应格式
-
-```json
-// 成功
-{
-  "code": 0,
-  "data": { ... }
-}
-
-// 错误
-{
-  "code": 404,
-  "message": "基金不存在"
-}
-```
-
----
-
-## 五、模块间通信
-
-### 5.1 调用关系
-
-```
-┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│   前端       │────▶│   Flask      │────▶│   分析层     │
-│   Vue3       │◀────│   API        │◀────│   analysis   │
-└──────────────┘     └──────────────┘     └──────────────┘
-                            │                    │
-                            ▼                    ▼
-                     ┌──────────────┐     ┌──────────────┐
-                     │   数据层     │◀───▶│   LLM        │
-                     │   data       │     │   MiniMax    │
-                     └──────────────┘     └──────────────┘
-```
-
-### 5.2 数据结构
-
-#### 基金信息
-
-```python
-{
-    "fund_code": "001234",
-    "fund_name": "某某混合基金",
-    "fund_type": "混合型",
-    "manager": "张三",
-    "fund_scale": 50.0,
-    "watchlist": True
-}
-```
-
-#### 净值数据
-
-```python
-{
-    "fund_code": "001234",
-    "nav_date": "2024-01-15",
-    "unit_nav": 1.2345,
-    "accum_nav": 2.3456,
-    "daily_return": 1.25
-}
-```
-
-#### 业绩指标
-
-```python
-{
-    "return_1m": 3.25,
-    "return_3m": 8.50,
-    "return_6m": 12.30,
-    "return_1y": 15.20,
-    "annual_return": 15.20,
-    "volatility": 18.5,
-    "sharpe_ratio": 0.82,
-    "max_drawdown": -12.3,
-    "win_rate": 55.0
-}
-```
-
-#### 预测结果
-
-```python
-{
-    "fund_code": "001234",
-    "direction": 1,
-    "direction_label": "涨",
-    "magnitude": 0.025,
-    "prob_up": 0.68,
-    "magnitude_5": [0.01, 0.02, -0.01, 0.015, 0.005],
-    "predict_date": "2024-01-15"
-}
-```
-
-#### LLM 分析结果
-
-```python
-{
-    "fund_profile": "该基金为混合型基金，投资风格...",
-    "performance_attribution": "业绩主要来源于...",
-    "risk_assessment": "风险等级中等，波动率...",
-    "investment_advice": "建议适度配置..."
-}
-```
-
----
-
-## 六、大模型集成
-
-### 6.1 LLM 客户端
-
-已实现 MiniMax M2.5 集成：
-
-```python
-from analysis.llm import get_client
-
-client = get_client()
-result = client.chat([{"role": "user", "content": "分析基金001234"}])
-```
-
-### 6.2 配置
-
-| 配置项 | 说明 | 默认值 |
-|--------|------|--------|
-| `MINIMAX_API_KEY` | MiniMax API Key | 必填 |
-| `MINIMAX_MODEL` | 模型名称 | MiniMax-M2.5 |
-| `MINIMAX_BASE_URL` | API 地址 | https://api.minimax.chat/v1 |
-
-### 6.3 分析场景
-
-| 场景 | 输入数据 | 输出 |
-|------|----------|------|
-| 基金概况 | 基金类型/经理/规模 | 投资风格分析 |
-| 业绩归因 | 收益率/波动率/基准 | 收益来源分析 |
-| 风险评估 | 回撤/胜率/波动率 | 风险等级评估 |
-| 投资建议 | 指标+预测数据 | 买入/持有建议 |
-| 智能报告 | 全部数据 | 完整分析报告 |
-
----
-
-## 七、性能优化
-
-### 7.1 缓存策略
-
-| 数据类型 | TTL | 说明 |
-|----------|-----|------|
-| 基金列表 | 30分钟 | 变化较少 |
-| 净值数据 | 30分钟 | 日更 |
-| 最新净值 | 5分钟 | 高频访问 |
-| 业绩指标 | 1小时 | 计算复杂 |
-| 预测结果 | 5分钟 | 实时性要求 |
-| LLM 分析 | 24小时 | 分析结果稳定 |
-
-### 7.2 查询限制
-
-```python
-MAX_NAV_RECORDS = 5000    # 净值最多查5000条
-MAX_FUND_LIST = 100       # 列表最多100条
-MAX_PREDICT_BATCH = 10    # 批量预测最多10个
-```
-
-### 7.3 LSTM 简化
-
-```python
-TRAIN_CONFIG = {
-    'epochs': 10,          # 开发环境
-    'hidden_size': 32,
-    'batch_size': 64,
-    'seq_length': 20,
-}
-```
-
----
-
-## 八、实施步骤
-
-### Phase 1：数据库重构（1天）
-
-- [ ] 重写 `data/schema.py`
-- [ ] 执行 SQL 创建新表
-- [ ] 删除旧股票表
-
-### Phase 2：数据层（2天）
-
-- [ ] 实现 `data/cache.py`
-- [ ] 实现 `data/fund_repo.py`
-- [ ] 实现 `data/fund_fetcher.py`
-
-### Phase 3：分析模块（2天）
-
-- [ ] 完善 `analysis/fund_metrics.py`
-- [ ] 实现 `analysis/fund_lstm.py`
-- [ ] 实现 `analysis/fund_benchmark.py`
-
-### Phase 4：API（2天）
-
-- [ ] 重写 `server/routes/api.py`
-- [ ] 实现 LLM 分析接口
-- [ ] 添加缓存
-
-### Phase 5：LLM 集成（1天）
-
-- [ ] 完成 `analysis/llm/` 模块
-- [ ] 测试 MiniMax 连接
-
-### Phase 6：前端（4天）
-
-- [ ] 新建 Vue 页面
-- [ ] 实现卡通风格
-- [ ] 前后端联调
-
-### Phase 7：测试优化（1天）
-
-- [ ] 功能测试
-- [ ] 性能优化
-- [ ] Bug 修复
-
----
-
-## 九、工作量估算
-
-| 阶段 | 天数 |
-|------|------|
-| 数据库重构 | 1 |
-| 数据层 | 2 |
-| 分析模块 | 2 |
-| API | 2 |
-| LLM 集成 | 1 |
-| 前端 | 4 |
-| 测试优化 | 1 |
-| **总计** | **13天** |
-
----
-
-## 十、模块独立性设计
-
-### 10.1 设计原则
-
-| 原则 | 说明 |
-|------|------|
-| **接口隔离** | 模块间通过接口通信，不直接依赖具体实现 |
-| **依赖倒置** | 上层模块依赖抽象接口，不依赖下层具体类 |
-| **单一职责** | 每个模块只负责一项功能 |
-| **可替换性** | 同一接口可替换不同实现（如 LLM 客户端） |
-
-### 10.2 模块设计原则
-
-| 原则 | 说明 |
-|------|------|
-| **单向依赖** | data → analysis → server，禁止反向依赖 |
-| **配置外置** | 硬编码提取到 config.yaml |
-| **统一异常** | 自定义异常类，区分业务/系统异常 |
-
-### 10.3 LLM 模块使用
-
-```python
-# 使用 LLM 模块
-from analysis.llm import get_client, is_available
-
-# 检查可用性
-if is_available():
-    client = get_client()
-    result = client.chat([{"role": "user", "content": "分析基金001234"}])
-```
-
-### 10.4 模块替换（如未来需要）
-
-如需替换 LLM 后端，只需修改 `analysis/llm/client.py`，业务代码无需改动。
-
----
-
-## 十一、实施注意事项
-
-### 11.1 代码组织
-
-| 规则 | 说明 |
-|------|------|
-| **禁止循环依赖** | data → analysis → data 禁止 |
-| **接口先于实现** | 先定义接口，再写实现 |
-| **配置外置** | 硬编码配置需提取到 config.yaml |
-| **异常统一** | 自定义异常类，区分业务异常和系统异常 |
-
-### 11.2 文件命名规范
-
-```
-# 模块目录
-data/
-├── interfaces.py      # 接口定义
-├── repo.py            # 默认实现
-├── mysql_repo.py      # MySQL 实现（可选）
-├── cache.py           # 缓存实现
-└── ...
-
-analysis/
-├── interfaces.py     # 接口定义
-├── metrics.py        # 默认实现
-├── fund_metrics.py   # 基金指标（可选）
-└── ...
-```
-
-### 11.3 模块集成顺序
-
-```
-Step 1: 实现数据层 (fund_repo.py, cache.py)
-    │
-    ▼
-Step 2: 实现分析层 (fund_metrics.py)
-    │
-    ▼
-Step 3: 集成测试 (数据层 → 分析层)
-    │
-    ▼
-Step 4: 实现 API 层
-    │
-    ▼
-Step 5: 实现 LLM 集成 (已完成)
-    │
-    ▼
-Step 6: 前端集成
-```
-
-### 11.4 测试策略
-
-```python
-# 单元测试 - 测试单个模块
-# tests/test_fund_metrics.py
-def test_calculate_return():
-    from analysis.fund_metrics import calculate_return
-    import pandas as pd
-    nav = pd.Series([1.0, 1.1, 1.2])
-    assert calculate_return(nav, 30) > 0
-
-# 接口测试 - 测试接口契约
-# tests/test_interfaces.py
-def test_fund_data_port():
-    from data.interfaces import FundDataPort
-    # 验证接口方法存在
-    assert hasattr(FundDataPort, 'get_fund_list')
-    assert hasattr(FundDataPort, 'get_fund_nav')
-
-# 集成测试 - 测试模块间通信
-# tests/test_integration.py
-def test_metrics_with_real_data():
-    from data.fund_repo import get_fund_nav
-    from analysis.fund_metrics import calculate_return
-    
-    nav_df = get_fund_nav('001234', days=365)
-    nav_series = nav_df.set_index('nav_date')['unit_nav']
-    result = calculate_return(nav_series)
-    assert isinstance(result, (int, float))
-```
-
-### 11.5 常见错误与避免
-
-| 错误 | 避免方法 |
-|------|----------|
-| 直接在业务代码 new 具体类 | 使用依赖注入 |
-| 硬编码 API Key | 提取到环境变量/config.yaml |
-| 模块间直接 import | 通过接口中转 |
-| 忘记接口变更同步 | 接口文档与代码同步 |
-| 单个文件过大 | 按职责拆分模块 |
-
-### 11.6 重构检查清单
-
-```markdown
-- [ ] 确认修改的模块有对应接口
-- [ ] 确认修改不破坏现有接口
-- [ ] 确认修改不影响依赖该模块的其他模块
-- [ ] 运行单元测试
-- [ ] 运行集成测试
-- [ ] 更新接口文档（如有变化）
-```
-
----
-
-## 十二、配置管理
-
-### 12.1 配置文件结构
-
-```yaml
-# config.yaml
-app:
-  name: FundProphet
-  debug: true
-
-database:
-  host: 127.0.0.1
-  port: 3306
-  user: root
-  password: xxx
-  database: fund_db
-
-cache:
-  enabled: true
-  default_ttl: 300
-
-llm:
-  enabled: true
-  api_key: ${MINIMAX_API_KEY}
-
-fund:
-  max_batch: 10
-  default_days: 365
-  update_hour: 16
-  update_minute: 30
-
-lstm:
-  epochs: 10
-  hidden_size: 32
-  batch_size: 64
-  seq_length: 20
-
-frontend:
-  host: localhost
-  port: 5173
-
-backend:
-  host: 0.0.0.0
-  port: 5050
-```
-
-### 12.2 环境变量
-
-```bash
-# .env 文件（不提交到版本控制）
-MINIMAX_API_KEY=sk-xxx
-OPENAI_API_KEY=sk-xxx
-MYSQL_PASSWORD=xxx
-```
-
----
-
-## 十三、目录结构（最终版）
+## 三、目录结构
 
 ```
 trade/
-├── .env                         # 环境变量（不提交）
-├── config.yaml                  # 配置文件
-├── server.py                    # 启动入口
-├── requirements.txt             # Python 依赖
+├── server.py                        # 启动入口（Flask，端口 5050）
+├── config.yaml                      # 全局配置（MySQL、股票列表、日期范围等）
 │
-├── data/                       # 数据层
-│   ├── __init__.py
-│   ├── mysql.py               # MySQL 连接
-│   ├── schema.py              # 表结构
-│   ├── cache.py               # 缓存实现
-│   ├── fund_repo.py           # 基金仓储
-│   ├── fund_fetcher.py        # 数据抓取
-│   └── index_repo.py          # 指数仓储
+├── server/                          # 后端包
+│   ├── app.py                       # Flask 应用工厂，注册蓝图，APScheduler 定时任务
+│   ├── utils.py                     # 配置读写、akshare 拉取、DB 存储工具
+│   ├── logging_config.py            # 日志配置（文件轮转 + 请求访问日志）
+│   └── routes/                      # API 路由蓝图
+│       ├── api.py                   # 股票数据接口（/api/*）
+│       ├── news.py                  # 新闻接口（/api/news/*）
+│       ├── market.py                # 市场/宏观数据（/api/market/*）
+│       ├── fund_industry.py         # 基金行业分析（/api/fund-industry/*）
+│       ├── fund_news_association.py # 基金新闻关联（/api/fund-news/*）
+│       ├── news_classification.py   # 新闻行业分类（/api/news-classification/*）
+│       └── investment_advice.py     # 投资建议（/api/investment-advice/*）
 │
-├── analysis/                   # 分析层
-│   ├── __init__.py
-│   ├── fund_data.py           # 数据处理
-│   ├── fund_metrics.py        # 指标计算
-│   ├── fund_benchmark.py      # 基准对比
-│   ├── fund_lstm.py           # LSTM 预测
-│   ├── fund_factor.py         # 多因子筛选
-│   ├── technical.py           # 技术指标
-│   ├── factor_library.py      # 因子库
-│   ├── llm/                  # ★ 大模型模块
-│   │   ├── __init__.py
-│   │   └── client.py         # MiniMax 客户端
-│   └── utils.py              # 分析工具
+├── data/                            # 数据访问层
+│   ├── mysql.py                     # MySQL 连接管理
+│   ├── schema.py                    # 建表 DDL（启动时自动建表）
+│   ├── stock_repo.py                # 股票数据读写
+│   ├── fund_repo.py                 # 基金数据读写
+│   ├── fund_fetcher.py              # 基金数据抓取（akshare）
+│   ├── fund_holdings.py             # 基金持仓数据
+│   ├── index_repo.py                # 指数数据
+│   ├── lstm_repo.py                 # LSTM 模型持久化
+│   ├── cache.py                     # SQLite 本地缓存（cache.db）
+│   ├── news/                        # 新闻爬虫与存储
+│   └── market/                      # 宏观市场数据抓取与存储
 │
-├── server/                     # Web 层
-│   ├── __init__.py
-│   ├── app.py                # Flask 应用
-│   ├── utils.py              # 通用工具
-│   ├── logging_config.py     # 日志配置
-│   ├── scheduler.py          # 定时任务
-│   └── routes/
-│       ├── __init__.py
-│       └── api.py            # API 路由
+├── analysis/                        # 分析算法层
+│   ├── time_domain.py               # 时域统计、移动均线、最大回撤、STL 分解
+│   ├── frequency_domain.py          # FFT、功率谱、小波变换、主导周期
+│   ├── arima_model.py               # ARIMA 建模与预测
+│   ├── shape_similarity.py          # 形态相似度、DTW
+│   ├── complexity.py                # 近似熵等非线性复杂度指标
+│   ├── technical.py                 # 技术指标（MACD、RSI 等）
+│   ├── factor_library.py            # 因子库
+│   ├── ensemble_models.py           # 集成模型
+│   ├── lstm_model.py                # 股票 LSTM（60日特征 → 未来5日预测）
+│   ├── lstm_*.py                    # LSTM 辅助模块（训练/验证/监控/版本等）
+│   ├── fund_lstm.py                 # 基金 LSTM 预测
+│   ├── fund_analyzer.py             # 基金综合分析
+│   ├── fund_metrics.py              # 基金绩效指标（收益率/夏普/回撤等）
+│   ├── fund_benchmark.py            # 基准对比
+│   ├── fund_data.py                 # 基金数据处理
+│   ├── full_report.py               # 股票综合分析报告生成
+│   ├── full_fund_report.py          # 基金综合分析报告生成
+│   ├── ensemble_report.py           # 集成模型报告
+│   └── llm/                         # LLM 大模型分析接口
 │
-├── frontend/                   # 前端
-│   ├── src/
-│   │   ├── api/             # API 请求
-│   │   ├── components/      # 组件
-│   │   ├── views/          # 页面
-│   │   ├── stores/         # 状态管理
-│   │   ├── styles/         # 卡通样式
-│   │   ├── router/         # 路由
-│   │   ├── App.vue
-│   │   └── main.js
-│   └── package.json
+├── modules/                         # 业务逻辑模块（LLM 驱动）
+│   ├── fund_industry/               # 基金行业识别
+│   │   ├── analyzer.py
+│   │   ├── repo.py
+│   │   ├── schema.py
+│   │   └── interfaces.py
+│   ├── fund_news_association/       # 基金-新闻关联匹配
+│   ├── news_classification/         # 新闻行业分类
+│   │   ├── analyzer.py
+│   │   ├── repo.py
+│   │   └── interfaces.py
+│   └── investment_advice/           # 投资建议生成
 │
-├── tests/                      # 测试（后续添加）
-│   ├── test_data/
-│   └── test_analysis/
+├── frontend/                        # 前端工程（Vue3 + Vite）
+│   └── src/
+│       ├── main.js                  # 入口，挂载 Pinia、Router
+│       ├── App.vue                  # 根组件
+│       ├── views/                   # 页面组件（11个页面）
+│       ├── components/              # 公共组件（MacroIndicator、SentimentChart）
+│       ├── router/index.js          # 路由配置
+│       ├── stores/                  # Pinia 状态管理
+│       ├── api/                     # 接口封装
+│       ├── utils/                   # 工具函数
+│       └── styles/                  # 全局样式
 │
-└── docs/                      # 文档
-    └── ARCHITECTURE.md       # 本文档
+├── docs/                            # 文档
+├── tests/                           # 测试用例
+├── Makefile                         # 常用命令快捷方式
+├── docker-compose.yml               # Docker 一键部署（应用 + MySQL）
+└── requirements.txt                 # Python 依赖
 ```
+
+---
+
+## 四、功能模块详解
+
+### 4.1 股票数据模块
+
+核心文件：`server/routes/api.py`、`data/stock_repo.py`、`server/utils.py`
+
+数据来源：akshare（A股、港股日线行情）
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/list` | GET | 获取数据库中的股票列表 |
+| `/api/data?file=<symbol>` | GET | 获取指定股票日线数据 |
+| `/api/fetch_data/<code>` | GET | 优先读本地，无则从 akshare 拉取 |
+| `/api/add_stock` | POST | 添加股票并抓取近5年数据 |
+| `/api/update_all` | POST | 增量更新所有股票至今日 |
+| `/api/sync_all` | POST | 全量重新同步所有股票 |
+| `/api/remove_stock` | POST | 移除股票及其数据 |
+| `/api/analyze` | GET | 触发综合分析（时域/频域/ARIMA等） |
+| `/api/lstm/train` | POST | 训练股票 LSTM 模型 |
+| `/api/lstm/predict` | GET | 使用已训练模型预测未来5日 |
+
+数据库表：`stock_meta`（元信息）、`stock_daily`（日线行情 OHLCV）
+
+---
+
+### 4.2 基金数据模块
+
+核心文件：`data/fund_repo.py`、`data/fund_fetcher.py`、`data/fund_holdings.py`
+
+- 通过 akshare 抓取基金净值、持仓、基本信息
+- 支持增量更新与全量同步
+- 定时任务：每日凌晨 3:00 自动同步所有基金近30日净值
+- 前端页面：`FundHome`（列表与搜索）、`FundDetail`（详情与净值曲线）
+
+---
+
+### 4.3 新闻模块
+
+核心文件：`server/routes/news.py`、`data/news/`
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/news/list` | GET | 新闻列表（分页、按来源/关键词筛选） |
+| `/api/news/detail/<id>` | GET | 新闻详情 |
+| `/api/news/crawl` | POST | 触发新闻爬取 |
+| `/api/news/analysis` | GET | 新闻情感与热点分析 |
+
+前端页面：`NewsHome`、`NewsList`、`NewsDetail`、`NewsAnalysis`
+
+---
+
+### 4.4 新闻行业分类模块
+
+核心文件：`server/routes/news_classification.py`、`modules/news_classification/`
+
+将财经新闻自动归类到行业（新能源、半导体、消费等），支持关键词匹配 + LLM 辅助分类。
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/news-classification/industries` | GET | 获取所有行业分类列表 |
+| `/api/news-classification/classify` | POST | 对新闻进行行业分类 |
+
+前端页面：`NewsClassification`
+
+---
+
+### 4.5 基金行业分析模块
+
+核心文件：`server/routes/fund_industry.py`、`modules/fund_industry/`
+
+通过 LLM 分析基金持仓，识别主要投资行业，返回行业名称与置信度。
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/fund-industry/analyze/<code>` | POST | 分析基金主要投资行业 |
+
+前端页面：`FundIndustry`
+
+---
+
+### 4.6 基金-新闻关联模块
+
+核心文件：`server/routes/fund_news_association.py`、`modules/fund_news_association/`
+
+将基金的行业标签与新闻行业分类进行匹配，为每只基金推荐相关财经新闻。
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/fund-news/match/<code>` | GET | 为基金匹配相关新闻（支持 days、min_confidence 参数） |
+
+前端页面：`FundNewsAssociation`
+
+---
+
+### 4.7 投资建议模块
+
+核心文件：`server/routes/investment_advice.py`、`modules/investment_advice/`
+
+综合基金净值走势、行业新闻、市场情绪，由 LLM 生成短/中/长期投资建议。
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/investment-advice/<code>` | GET | 获取基金投资建议（支持 days 参数） |
+
+---
+
+### 4.8 市场宏观数据模块
+
+核心文件：`server/routes/market.py`、`data/market/`
+
+抓取并展示宏观经济指标（CPI、PMI、利率等）与市场情绪指数。
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/market/macro` | GET | 获取宏观经济指标数据 |
+| `/api/market/sentiment` | GET | 获取市场情绪指数 |
+
+前端页面：`MarketHome`（含 `MacroIndicator`、`SentimentChart` 组件）
+
+---
+
+### 4.9 LSTM 预测模块
+
+核心文件：`analysis/lstm_model.py`（股票）、`analysis/fund_lstm.py`（基金）
+
+**股票 LSTM：**
+
+| 项目 | 说明 |
+|------|------|
+| 输入 | 60日多维特征（OHLCV + 技术指标） |
+| 输出 | 未来5日涨跌方向（分类）+ 涨跌幅（回归） |
+| 特性 | 交叉验证、超参优化、SHAP 可解释性、模型版本管理 |
+| 并发控制 | 同一股票同时只允许一个训练任务，超时2小时自动释放锁 |
+
+**基金 LSTM：**
+
+- 支持关注列表自动训练（定时任务，每日凌晨 4:00）
+- 前端页面：`FundPredict`（预测中心）
+
+LSTM 辅助模块（均在 `analysis/` 下）：
+
+| 文件 | 职责 |
+|------|------|
+| `lstm_training.py` | 训练流程 |
+| `lstm_validation.py` | 验证与评估 |
+| `lstm_predict_flow.py` | 预测流程 |
+| `lstm_monitoring.py` | 训练监控 |
+| `lstm_versioning.py` | 模型版本管理 |
+| `lstm_diagnostics.py` | 诊断工具 |
+| `lstm_fallback.py` | 降级策略 |
+| `lstm_triggers.py` | 触发条件 |
+| `lstm_losses.py` | 自定义损失函数 |
+| `lstm_volatility_features.py` | 波动率特征工程 |
+| `lstm_constants.py` | 常量定义 |
+| `lstm_spec.py` | 规格定义 |
+
+---
+
+### 4.10 综合分析报告模块
+
+核心文件：`analysis/full_report.py`（股票）、`analysis/full_fund_report.py`（基金）
+
+整合时域、频域、ARIMA、形态相似度、复杂度等多维分析，生成图表与文字报告，输出到 `output/` 目录。
+
+- 通过 API 触发：`GET /api/analyze?symbol=&start=&end=`
+- 命令行独立运行：`python -m analysis.full_report data/xxx.csv`
+
+---
+
+## 五、定时任务
+
+在 `server/app.py` 中通过 APScheduler 注册，随后端启动自动运行：
+
+| 任务 | 执行时间 | 说明 |
+|------|----------|------|
+| 基金数据同步 | 每日 03:00 | 同步所有基金近30日净值数据 |
+| LSTM 自动训练 | 每日 04:00 | 训练关注列表中的基金 LSTM 模型 |
+
+---
+
+## 六、数据流
+
+```
+akshare（外部数据源）
+    │
+    ▼
+data/fund_fetcher / server/utils（抓取层）
+    │
+    ├──▶ data/cache.py（SQLite 短期缓存，减少重复请求）
+    │
+    ▼
+MySQL（持久化存储）
+    │
+    ▼
+data/stock_repo / fund_repo / news / market（数据访问层）
+    │
+    ├──▶ analysis/（算法分析层）
+    │         │
+    │         ├──▶ LSTM 预测（PyTorch）
+    │         ├──▶ 统计分析（时域/频域/ARIMA）
+    │         └──▶ LLM 分析（大模型接口）
+    │
+    ▼
+server/routes/（API 层）
+    │
+    ▼
+前端 Vue3（展示层）
+```
+
+---
+
+## 七、前端页面路由
+
+前端统一挂载在 `/app` 前缀下（与后端 `/api` 区分）。
+
+| 路径 | 页面组件 | 功能 |
+|------|----------|------|
+| `/app/` | FundHome | 基金列表、搜索、关注管理 |
+| `/app/fund/:code` | FundDetail | 基金详情、净值曲线、持仓分析 |
+| `/app/predict` | FundPredict | LSTM 预测中心 |
+| `/app/fund-industry` | FundIndustry | 基金行业分析 |
+| `/app/news` | NewsHome | 财经新闻首页 |
+| `/app/news/list` | NewsList | 新闻列表与筛选 |
+| `/app/news/analysis` | NewsAnalysis | 新闻情感分析 |
+| `/app/news/classification` | NewsClassification | 新闻行业分类 |
+| `/app/news/:id` | NewsDetail | 新闻详情 |
+| `/app/market` | MarketHome | 宏观市场数据与情绪指数 |
+| `/app/fund-news` | FundNewsAssociation | 基金新闻关联推荐 |
+
+---
+
+## 八、数据库表结构
+
+后端启动时通过 `data/schema.py` 自动建表（连接失败则跳过）。
+
+| 表名 | 说明 | 关键字段 |
+|------|------|----------|
+| `stock_meta` | 股票元信息 | `symbol`（唯一）、`name`、`first_trade_date`、`last_trade_date` |
+| `stock_daily` | 股票日线行情 | `symbol`、`trade_date`、`open`、`high`、`low`、`close`、`volume` |
+| `fund_meta` | 基金基本信息 | `fund_code`（唯一）、`fund_name`、`fund_type`、`watchlist` |
+| `fund_nav` | 基金净值 | `fund_code`、`nav_date`、`unit_nav`、`accum_nav`、`daily_return` |
+| `fund_prediction` | LSTM 预测记录 | `fund_code`、`predict_date`、`direction`、`magnitude`、`prob_up` |
+| `fund_model` | LSTM 模型存储 | `fund_code`、`model_data`（BLOB） |
+| `news_*` | 新闻数据 | 标题、来源、URL、发布时间、内容 |
+| `market_*` | 宏观市场数据 | 指标名称、日期、数值 |
+
+写入策略：`INSERT ... ON DUPLICATE KEY UPDATE`，支持全量覆盖与增量更新。
+
+---
+
+## 九、技术栈汇总
+
+| 层级 | 技术 | 用途 |
+|------|------|------|
+| 后端框架 | Flask | API 服务、SPA 静态资源托管 |
+| 数据抓取 | akshare | 股票/基金行情数据 |
+| 数据处理 | pandas | 数据清洗与计算 |
+| 持久化存储 | MySQL + PyMySQL | 主数据库 |
+| 本地缓存 | SQLite | 短期缓存，减少重复抓取 |
+| 定时任务 | APScheduler | 数据同步、模型自动训练 |
+| 深度学习 | PyTorch | LSTM 预测模型 |
+| 机器学习 | scikit-learn | 特征工程、交叉验证 |
+| 可解释性 | SHAP | 模型特征重要性分析 |
+| 大模型 | LLM（可配置） | 行业分析、新闻分类、投资建议 |
+| 前端框架 | Vue 3 (Composition API) | 页面组件 |
+| 构建工具 | Vite | 开发服务器、生产打包 |
+| 状态管理 | Pinia | 全局状态 |
+| 图表 | ECharts | 净值曲线、K线、宏观指标图 |
+| 部署 | Docker Compose | 一键部署应用 + MySQL |
+
+---
+
+## 十、开发与部署
+
+### 本地开发（前后端分离）
+
+```bash
+# 后端（端口 5050）
+python server.py
+
+# 前端（端口 5173，/api 代理到 5050）
+cd frontend && pnpm install && pnpm run dev
+```
+
+### 本地生产（前后端一体）
+
+```bash
+cd frontend && pnpm run build   # 构建前端到 frontend/dist
+python server.py                # 后端同时提供 API 与静态资源
+# 访问 http://localhost:5050
+```
+
+### Docker 部署
+
+```bash
+docker compose up -d --build
+# 访问 http://localhost:5050
+```
+
+### 一键安装依赖
+
+```bash
+make install   # pip install -r requirements.txt && cd frontend && pnpm install
+```
+
+---
+
+## 十一、扩展指引
+
+| 扩展点 | 操作 |
+|--------|------|
+| 新增后端接口 | 在 `server/routes/` 下新建或修改蓝图文件，在 `server/app.py` 中注册 |
+| 新增前端页面 | 在 `frontend/src/views/` 下添加组件，在 `router/index.js` 中注册路由 |
+| 新增分析算法 | 在 `analysis/` 下添加模块，在 `full_report.py` 中挂接 |
+| 新增业务模块 | 在 `modules/` 下按 `analyzer / repo / interfaces` 结构新建目录 |
+| 替换 LLM 后端 | 修改 `analysis/llm/` 下的客户端实现，业务代码无需改动 |
+| 新增定时任务 | 在 `server/app.py` 的 `scheduler` 中添加 `add_job` |

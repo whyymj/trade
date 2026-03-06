@@ -1,0 +1,29 @@
+api:
+  dashboard: true
+  insecure: true
+
+entryPoints:
+  web:
+    address: ":80"
+  websecure:
+    address: ":443"
+
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+
+# 路由规则由 Docker labels 配置
+# 示例：
+# services:
+#   fund-service:
+#     labels:
+#       - "traefik.enable=true"
+#       - "traefik.http.routers.fund.rule=PathPrefix(`/api/fund`)"
+#       - "traefik.http.services.fund.loadbalancer.server.port=8002"
+#
+#   stock-service:
+#     labels:
+#       - "traefik.enable=true"
+#       - "traefik.http.routers.stock.rule=PathPrefix(`/api/stock`) || PathPrefix(`/api/lstm`)"
+#       - "traefik.http.services.stock.loadbalancer.server.port=8001"

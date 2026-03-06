@@ -1,0 +1,34 @@
+{
+  "funds": [
+    {
+      "fund_code": "001302",
+      "fund_name": "前海开源沪深300指数增强",
+      "fund_type": "指数型",
+      "risk_level": "中风险"
+    },
+    {
+      "fund_code": "007040",
+      "fund_name": "汇添富科技创新混合A",
+      "fund_type": "混合型",
+      "risk_level": "高风险"
+    }
+  ],
+  "news": [
+    {
+      "title": "央行：保持流动性合理充裕",
+      "content": "人民银行表示，将继续实施稳健的货币政策",
+      "source": "财联社",
+      "url": "http://cailianpress.com/news/1",
+      "published_at": "2024-01-15 10:30:00",
+      "category": "宏观"
+    },
+    {
+      "title": "美伊冲突升级 油价大涨超3%",
+      "content": "地缘政治紧张导致国际油价大幅上涨",
+      "source": "华尔街见闻",
+      "url": "http://wallstreetcn.com/news/2",
+      "published_at": "2024-01-15 09:15:00",
+      "category": "全球"
+    }
+  ]
+}

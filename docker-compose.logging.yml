@@ -1,0 +1,62 @@
+version: '3.9'
+
+services:
+  # Loki - 日志聚合存储
+  loki:
+    image: grafana/loki:latest
+    container_name: fundprophet-loki
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./logging/loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+    networks:
+      - fundprophet-network
+    restart: unless-stopped
+
+  # Promtail - 日志收集代理
+  promtail:
+    image: grafana/promtail:latest
+    container_name: fundprophet-promtail
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./logging/promtail-config.yaml:/etc/promtail/config.yml:ro
+    depends_on:
+      - loki
+    networks:
+      - fundprophet-network
+    restart: unless-stopped
+
+  # Grafana - 日志可视化面板
+  grafana:
+    image: grafana/grafana:latest
+    container_name: fundprophet-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_SERVER_ROOT_URL: http://localhost:3000
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./logging/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./logging/grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - ./logging/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - loki
+    networks:
+      - fundprophet-network
+    restart: unless-stopped
+
+networks:
+  fundprophet-network:
+    driver: bridge
+    name: fundprophet-network
+
+volumes:
+  loki-data:
+    name: fundprophet-loki-data
+  grafana-data:
+    name: fundprophet-grafana-data

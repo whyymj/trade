@@ -1,0 +1,307 @@
+version: '3.9'
+
+services:
+  # API Gateway - Traefik
+  traefik:
+    image: traefik:v3.1
+    container_name: fundprophet-traefik
+    ports:
+      - "80:80"
+      - "8080:8080"
+    command:
+      - --api.insecure=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - fundprophet-network
+    restart: unless-stopped
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: fundprophet-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - fundprophet-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
+  # MySQL 数据库
+  mysql:
+    image: mysql:8.0
+    container_name: fundprophet-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - fundprophet-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  # Stock Service - 股票数据服务
+  stock-service:
+    build:
+      context: ./services/stock
+      dockerfile: Dockerfile
+    container_name: fundprophet-stock
+    ports:
+      - "8001:8001"
+    environment:
+      DB_HOST: mysql
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      REDIS_URL: redis://redis:6379
+      LOG_LEVEL: ${LOG_LEVEL}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.stock.rule=PathPrefix(`/api/stock`) || PathPrefix(`/api/lstm`)"
+      - "traefik.http.services.stock.loadbalancer.server.port=8001"
+    networks:
+      - fundprophet-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # Fund Service - 基金数据服务
+  fund-service:
+    build:
+      context: ./services/fund
+      dockerfile: Dockerfile
+    container_name: fundprophet-fund
+    ports:
+      - "8002:8002"
+    environment:
+      DB_HOST: mysql
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      REDIS_URL: redis://redis:6379
+      LOG_LEVEL: ${LOG_LEVEL}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.fund.rule=PathPrefix(`/api/fund`)"
+      - "traefik.http.services.fund.loadbalancer.server.port=8002"
+    networks:
+      - fundprophet-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # News Service - 新闻数据服务
+  news-service:
+    build:
+      context: ./services/news
+      dockerfile: Dockerfile
+    container_name: fundprophet-news
+    ports:
+      - "8003:8003"
+    environment:
+      DB_HOST: mysql
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      REDIS_URL: redis://redis:6379
+      LOG_LEVEL: ${LOG_LEVEL}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.news.rule=PathPrefix(`/api/news`)"
+      - "traefik.http.services.news.loadbalancer.server.port=8003"
+    networks:
+      - fundprophet-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # Market Service - 市场数据服务
+  market-service:
+    build:
+      context: ./services/market
+      dockerfile: Dockerfile
+    container_name: fundprophet-market
+    ports:
+      - "8004:8004"
+    environment:
+      DB_HOST: mysql
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      REDIS_URL: redis://redis:6379
+      LOG_LEVEL: ${LOG_LEVEL}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.market.rule=PathPrefix(`/api/market`)"
+      - "traefik.http.services.market.loadbalancer.server.port=8004"
+    networks:
+      - fundprophet-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # Fund-Intel Service - 基金智能分析服务
+  fund-intel-service:
+    build:
+      context: ./services/fund-intel
+      dockerfile: Dockerfile
+    container_name: fundprophet-fund-intel
+    ports:
+      - "8005:8005"
+    environment:
+      DB_HOST: mysql
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      REDIS_URL: redis://redis:6379
+      FUND_SERVICE_URL: http://fund-service:8002
+      NEWS_SERVICE_URL: http://news-service:8003
+      LLM_SERVICE_URL: http://llm-service:8006
+      LOG_LEVEL: ${LOG_LEVEL}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      fund-service:
+        condition: service_started
+      news-service:
+        condition: service_started
+      llm-service:
+        condition: service_started
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.fund-intel.rule=PathPrefix(`/api/fund-industry`) || PathPrefix(`/api/investment-advice`) || PathPrefix(`/api/news-classification`) || PathPrefix(`/api/fund-news`)"
+      - "traefik.http.services.fund-intel.loadbalancer.server.port=8005"
+    networks:
+      - fundprophet-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+
+  # LLM Service - AI 分析服务
+  llm-service:
+    build:
+      context: ./services/llm
+      dockerfile: Dockerfile
+    container_name: fundprophet-llm
+    ports:
+      - "8006:8006"
+    environment:
+      REDIS_URL: redis://redis:6379
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      MINIMAX_API_KEY: ${MINIMAX_API_KEY}
+      LOG_LEVEL: ${LOG_LEVEL}
+    depends_on:
+      redis:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.llm.rule=PathPrefix(`/api/llm`)"
+      - "traefik.http.services.llm.loadbalancer.server.port=8006"
+    networks:
+      - fundprophet-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # Scheduler - 定时任务服务
+  scheduler:
+    build:
+      context: ./scheduler
+      dockerfile: Dockerfile
+    container_name: fundprophet-scheduler
+    environment:
+      DB_HOST: mysql
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      REDIS_URL: redis://redis:6379
+      LOG_LEVEL: ${LOG_LEVEL}
+      STOCK_SERVICE_URL: http://stock-service:8001
+      FUND_SERVICE_URL: http://fund-service:8002
+      NEWS_SERVICE_URL: http://news-service:8003
+      MARKET_SERVICE_URL: http://market-service:8004
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - fundprophet-network
+    restart: unless-stopped
+
+networks:
+  fundprophet-network:
+    driver: bridge
+    name: fundprophet-network
+
+volumes:
+  redis-data:
+    name: fundprophet-redis-data
+  mysql-data:
+    name: fundprophet-mysql-data

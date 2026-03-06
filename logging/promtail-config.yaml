@@ -1,0 +1,51 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # 收集所有 Docker 容器日志
+  - job_name: containers
+    pipeline_stages:
+      - json:
+          expressions:
+            output: log
+            stream: stream
+            attrs: attrs
+      - json:
+          expressions:
+            tag: attrs.tag
+          source: output
+      - regex:
+          expression: '(?P<container_name>[a-z0-9_-]+)'
+          source: tag
+      - labels:
+          container_name:
+          stream:
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: docker
+          env: production
+          __path__: /var/lib/docker/containers/*/*log
+
+  # 收集 FundProphet 服务日志
+  - job_name: fundprophet
+    pipeline_stages:
+      - regex:
+          expression: '(?P<service_name>fundprophet-[a-z-]+)'
+          source: filename
+      - labels:
+          service_name:
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: fundprophet
+          __path__: /var/log/fundprophet/*.log
